@@ -1,0 +1,12 @@
+[package]
+
+name = "math3"
+version = "0.0.1"
+authors = [ "Your name <aschoerk@gmx.net>" ]
+
+[dependencies]
+
+
+[dev-dependencies.hamcrest]
+
+git = "https://github.com/carllerche/hamcrest-rust.git"
