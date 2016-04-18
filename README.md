@@ -40,6 +40,13 @@
  |                                                                      |
  +======================================================================+
 --->
+
+What is this Project
+====================
+
+A partial Rewrite of a non trivial java-module in Rust. Not usable for production purposes!
+
+
 Apache Commons Math
 ===================
 
@@ -65,19 +72,6 @@ Alternatively you can pull it from the central Maven repositories:
   <version>3.4</version>
 </dependency>
 ```
-
-Contributing
-------------
-
-We accept PRs via github. The [developer mailing list][ml] is the main channel of communication for contributors.
-There are some guidelines which will make applying PRs easier for us:
-+ No tabs! Please use spaces for indentation.
-+ Respect the code style.
-+ Create minimal diffs - disable on save actions like reformat source code or organize imports. If you feel the source code should be reformatted create a separate PR for this change.
-+ Provide JUnit tests for your changes and make sure your changes don't break any existing tests by running ```mvn clean test```.
-
-If you plan to contribute on a regular basis, please consider filing a [contributor license agreement](https://www.apache.org/licenses/#clas).
-You can learn more about contributing via GitHub in our [contribution guidelines](CONTRIBUTING.md).
 
 License
 -------
