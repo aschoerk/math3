@@ -3,13 +3,13 @@
 use std::f64;
 
 pub struct Complex {
-	pub real: f64,
+	real: f64,
 	
-	pub imaginary: f64,
+	imaginary: f64,
 	
-	pub is_nan: bool,
+	is_nan: bool,
 	
-	pub is_infinite: bool,
+	is_infinite: bool,
 	
 }
 
@@ -27,6 +27,15 @@ pub const ONE: Complex = Complex {real: 1.0, imaginary: 0.0, is_nan: false, is_i
     /** A complex number representing "0.0 + 0.0i" */    
 pub const ZERO: Complex = Complex {real: 0.0, imaginary: 0.0, is_nan: false, is_infinite: false };
 
+impl PartialEq for Complex {
+	 fn eq(&self, other: &Complex) -> bool {
+	 	if other.is_nan {
+	 		self.is_nan
+	 	} else {
+	 		self.real == other.real && self.imaginary == other.imaginary
+	 	}
+	 }
+}
 
 impl Complex {
 
@@ -36,20 +45,24 @@ impl Complex {
 		Complex { real: real, imaginary: imaginary, 
 			is_nan: is_nan, is_infinite: f64::is_infinite(real) || f64::is_infinite(imaginary)}
 	}
+
+	pub fn new_real(real: f64) -> Complex {
+		Complex::new(real, 0.0)
+	}
 	
-	fn get_real(&self) -> f64 {
+	pub fn get_real(&self) -> f64 {
 		self.real
 	}
 	
-	fn get_imaginary(&self) -> f64 {
+	pub fn get_imaginary(&self) -> f64 {
 		self.imaginary
 	}
 	
-	fn is_nan(&self) -> bool {
+	pub fn is_nan(&self) -> bool {
 		self.is_nan
 	}
 	
-	fn is_infinite(&self) -> bool {
+	pub fn is_infinite(&self) -> bool {
 		self.is_infinite
 	}
 	
@@ -76,11 +89,10 @@ impl Complex {
 		}
 	}
 	
-	fn add(&self, addend: Complex) -> Complex  {
+	pub fn add(&self, addend: &Complex) -> Complex  {
         if self.is_nan || addend.is_nan {
             NAN
         } else {
-
           Complex::new (self.real + addend.get_real(),
                              self.imaginary + addend.get_imaginary())
         }
@@ -102,7 +114,7 @@ impl Complex {
         }
     }
 	 
-	 pub fn divide(&self, divisor: Complex) -> Complex {
+	 pub fn divide(&self, divisor: &Complex) -> Complex {
         if self.is_nan || divisor.is_nan {
             return NAN
         }
@@ -174,17 +186,37 @@ impl Complex {
 #[cfg(test)]
 mod tests {
 	use hamcrest::*;	
+	use complex;
 	use complex::Complex;	
 	use std::f64;
+	
+	const ONE_INF: Complex = Complex {real: 1.0, imaginary: f64::INFINITY, is_nan: false, is_infinite: true};
+	const ONE_NEG_INF: Complex = Complex {real: 1.0, imaginary: f64::NEG_INFINITY, is_nan: false, is_infinite: true};
+	const INF_ONE: Complex = Complex {real: f64::INFINITY, imaginary: 1.0, is_nan: false, is_infinite: true};
+	const INF_ZERO: Complex = Complex {real: f64::INFINITY , imaginary: 0.0, is_nan: false, is_infinite: true};
+	const INF_NAN: Complex = Complex {real: f64::INFINITY, imaginary: f64::NAN, is_nan: true, is_infinite: true};
+	const INF_NEG_INF: Complex = Complex {real: f64::INFINITY, imaginary: f64::NEG_INFINITY, is_nan: false, is_infinite: true};
+	const NEG_INF_INF: Complex = Complex {real: f64::NEG_INFINITY, imaginary: f64::INFINITY, is_nan: false, is_infinite: true};
+	const NEG_INF_ZERO: Complex = Complex {real: f64::NEG_INFINITY, imaginary: 0.0, is_nan: false, is_infinite: true};
+	const NEG_INF_ONE: Complex = Complex {real: f64::NEG_INFINITY, imaginary: 1.0, is_nan: false, is_infinite: true};
+	const NEG_INF_NAN: Complex = Complex {real: f64::NEG_INFINITY, imaginary: f64::NAN, is_nan: true, is_infinite: true};
+	const NEG_INF_NEG_INF: Complex = Complex {real: f64::NEG_INFINITY, imaginary: f64::NEG_INFINITY, is_nan: false, is_infinite: true};
+	const ONE_NAN: Complex = Complex {real: 1.0, imaginary: f64::NAN, is_nan: true, is_infinite: false};
+	const ZERO_INF: Complex = Complex {real: 0.0, imaginary: f64::INFINITY, is_nan: false, is_infinite: true};
+	const ZERO_NAN: Complex = Complex {real: 0.0, imaginary: f64::NAN, is_nan: true, is_infinite: false};
+	const NAN_INF: Complex = Complex {real: f64::NAN, imaginary: f64::INFINITY, is_nan: true, is_infinite: true};
+	const NAN_NEG_INF: Complex = Complex {real: f64::NAN, imaginary: f64::NEG_INFINITY, is_nan: true, is_infinite: true};
+	const NAN_ZERO: Complex = Complex {real: f64::NAN, imaginary: 0.0, is_nan: true, is_infinite: false};
+    
 	#[test]
 	fn nan() {
-		let c = Complex::new(f64::NAN, f64::NAN);
+		let c: Complex = Complex::new(f64::NAN, f64::NAN);
 		assert!(c.is_nan);
 	}
 	
 	#[test]
 	fn constructor_test() {
-		let c = Complex::new(3.0, 4.0);
+		let c: Complex = Complex::new(3.0, 4.0);
 		assert_that(c.real,is(close_to(3.0,0.00001)));
 		assert_that(c.imaginary,is(close_to(4.0,0.00001)));
 		
@@ -192,101 +224,102 @@ mod tests {
 	
 	#[test]
 	fn test_constructor_nan() {
-        let z = Complex::new(3.0, f64::NAN);
+        let z: Complex = Complex::new(3.0, f64::NAN);
         assert!(z.is_nan);
 
-        let z = Complex::new(f64::NAN, 4.0);
+        let z: Complex = Complex::new(f64::NAN, 4.0);
         assert!(z.is_nan);
  
-        let z = Complex::new(3.0, 4.0);
+        let z: Complex = Complex::new(3.0, 4.0);
         assert!(!z.is_nan);
     }
 	
 	#[test]
 	fn test_abs() {
-		let z = Complex::new(3.0,4.0);
+		let z: Complex = Complex::new(3.0,4.0);
 		assert_that(z.abs(), is(close_to(5.0,0.0001)))
 	}
 	
 	#[test]
-    fn testAbsNaN() {
-        assert!(f64::is_nan(Complex::NAN.abs()));
-        let z = Complex::new(f64::INFINITY, f64::NAN);
+    fn test_abs_nan() {
+        assert!(f64::is_nan(complex::NAN.abs()));
+        let z: Complex = Complex::new(f64::INFINITY, f64::NAN);
         assert!(f64::is_nan(z.abs()));
     }
 
     #[test]
-    fn testAbsInfinite() {
-        let z = Complex::new(f64::INFINITY, 0);
-        assert_that(f64::INFINITY,is(close_to( z.abs(), 0)));
-        z = Complex::new(0, f64::INFINITY);
-        assert_that(f64::INFINITY,is(close_to( z.abs(), 0)));
-        z = Complex::new(f64::INFINITY, f64::INFINITY);
-        assert_that(f64::INFINITY,is(close_to( z.abs(), 0)));
+    fn test_abs_infinite() {
+        let z: Complex = Complex::new(f64::INFINITY, 0.0);
+        assert_that(f64::INFINITY,is(close_to( z.abs(), 0.0)));
+        let z: Complex = Complex::new(0.0, f64::NEG_INFINITY);
+        assert_that(f64::INFINITY,is(close_to( z.abs(), 0.0)));
+        let z: Complex = Complex::new(f64::INFINITY, f64::NEG_INFINITY);
+        assert_that(f64::INFINITY,is(close_to( z.abs(), 0.0)));
     }
 
     #[test]
-    fn testAdd() {
-        let x = Complex::new(3.0, 4.0);
-        let y = Complex::new(5.0, 6.0);
-        let z: Complex = x.add(y);
+    fn test_add() {
+        let x: Complex = Complex::new(3.0, 4.0);
+        let y: Complex = Complex::new(5.0, 6.0);
+        let z: Complex = x.add(&y);
         assert_that(8.0, is(close_to(z.get_real(), 1.0e-5)));
         assert_that(10.0, is(close_to(z.get_imaginary(), 1.0e-5)));
     }
 
     #[test]
-    fn testAddNaN() {
+    fn testadd_nan() {
+        let x: Complex = Complex::new(3.0, 4.0);
+        let z: Complex = x.add(&complex::NAN);
+        assert!(z.is_nan());
+        let z = Complex::new(1.0, f64::NAN);
+        let w: Complex = x.add(&z);
+        assert!(w.is_nan());
+    }
+
+    #[test]
+    fn test_add_inf() {
+        let x = Complex::new(1.0, 1.0);
+        let z = Complex::new(f64::INFINITY, 0.0);
+        let w: Complex = x.add(&z);
+        assert!(w.get_imaginary() ==  1.0);
+        assert!(f64::INFINITY == w.get_real());
+
+        let x = Complex::new(f64::NEG_INFINITY, 0.0);
+        assert!(f64::is_nan(x.add(&z).get_real()));
+    }
+
+
+    #[test]
+    fn test_scalar_add() {
         let x = Complex::new(3.0, 4.0);
-        let z: Complex = x.add(Complex.NaN);
-        Assert.assertSame(Complex.NaN, z);
-        z = Complex::new(1, f64::NAN);
-        let w: Complex = x.add(z);
-        Assert.assertSame(Complex.NaN, w);
+        let y_double: f64 = 2.0;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.add(&y_complex) == x.add_f64(y_double));
     }
 
     #[test]
-    fn testAddInf() {
-        let x = Complex::new(1, 1);
-        let z = Complex::new(f64::INFINITY, 0);
-        let w: Complex = x.add(z);
-        assert_that(w.get_imaginary(),is(close_to( 1, 0)));
-        assert_that(f64::INFINITY, is(close_to(w.get_real(), 0)));
-
-        x = Complex::new(f64::INFINITY, 0);
-        assert!(f64::is_nan(x.add(z).get_real()));
-    }
-
-
-    #[test]
-    fn testScalarAdd() {
+    fn test_scalar_add_nan() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = 2.0;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.add(yComplex),is(close_to( x.add(yDouble))));
+        let y_double: f64 = f64::NAN;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.add(&y_complex) == x.add_f64(y_double));
     }
 
     #[test]
-    fn testScalarAddNaN() {
-        let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = Double.NaN;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.add(yComplex),is(close_to( x.add(yDouble))));
+    fn test_scalar_add_inf() {
+        let x = Complex::new(1.0, 1.0);
+        let y_double: f64 = f64::INFINITY;
+
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.add(&y_complex) == x.add_f64(y_double));
+
+        let x = Complex::new(f64::INFINITY, 0.0);
+        assert!(x.add(&y_complex) == x.add_f64(y_double));
     }
 
-    #[test]
-    fn testScalarAddInf() {
-        let x = Complex::new(1, 1);
-        let yDouble: f64 = Double.POSITIVE_INFINITY;
-
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.add(yComplex),is(close_to( x.add(yDouble))));
-
-        x = Complex::new(f64::INFINITY, 0);
-        assert_that(x.add(yComplex),is(close_to( x.add(yDouble))));
-    }
 
     #[test]
-    fn testConjugate() {
+    fn test_conjugate() {
         let x = Complex::new(3.0, 4.0);
         let z: Complex = x.conjugate();
         assert_that(3.0, is(close_to(z.get_real(), 1.0e-5)));
@@ -294,136 +327,138 @@ mod tests {
     }
 
     #[test]
-    fn testConjugateNaN() {
-        let z = Complex.NaN.conjugate();
-        assert!(z.isNaN());
+    fn test_conjugate_nan() {
+        let z = complex::NAN.conjugate();
+        assert!(z.is_nan());
+    }
+
+
+    #[test]
+    fn test_conjugate_infiinite() {
+        let z = Complex::new(0.0, f64::INFINITY);
+        assert_that(f64::INFINITY, is(close_to(z.conjugate().get_imaginary(), 0.0)));
+        let z = Complex::new(0.0, f64::INFINITY);
+        assert_that(f64::INFINITY, is(close_to(z.conjugate().get_imaginary(), 0.0)));
     }
 
     #[test]
-    fn testConjugateInfiinite() {
-        let z = Complex::new(0, f64::INFINITY);
-        assert_that(f64::INFINITY, is(close_to(z.conjugate().get_imaginary(), 0)));
-        z = Complex::new(0, f64::INFINITY);
-        assert_that(f64::INFINITY, is(close_to(z.conjugate().get_imaginary(), 0)));
-    }
-
-    #[test]
-    fn testDivide() {
+    fn test_divide() {
         let x = Complex::new(3.0, 4.0);
         let y = Complex::new(5.0, 6.0);
-        let z: Complex = x.divide(y);
+        let z: Complex = x.divide(&y);
         assert_that(39.0 / 61.0, is(close_to(z.get_real(), 1.0e-5)));
         assert_that(2.0 / 61.0, is(close_to(z.get_imaginary(), 1.0e-5)));
     }
 
     #[test]
-    fn testDivideReal() {
+    fn test_divide_real() {
         let x = Complex::new(2f64, 3f64);
         let y = Complex::new(2f64, 0f64);
-        assert!(Complex::new(1f64, 1.5f64) == x.divide(y));
+        assert!(Complex::new(1f64, 1.5f64) == x.divide(&y));
 
     }
 
+
     #[test]
-    fn testDivideImaginary() {
+    fn test_divide_imaginary() {
         let x = Complex::new(2f64, 3f64);
         let y = Complex::new(0f64, 2f64);
-        assert!(Complex::new(1.5f64	, -1f64) == x.divide(y));
+        assert!(Complex::new(1.5f64	, -1f64) == x.divide(&y));
     }
 
     #[test]
-    fn testDivideInf() {
-        let x = Complex::new(3, 4);
-        let w = Complex::new(f64::INFINITY, f64::INFINITY);
-        assert!(x.divide(w).equals(Complex.ZERO));
-
-        let z = w.divide(x);
-        assert!(f64::is_nan(z.get_real()));
-        assert_that(f64::INFINITY, z.get_imaginary(), 0);
-
-        let w = Complex::new(f64::INFINITY, f64::INFINITY);
-        let z = w.divide(x);
-        assert!(f64::is_nan(z.get_imaginary()));
-        assert_that(f64::INFINITY, z.get_real(), 0);
-
-        let w = Complex::new(1, f64::INFINITY);
-        let z = w.divide(w);
-        assert!(f64::is_nan(z.get_real()));
-        assert!(f64::is_nan(z.get_imaginary()));
-    }
-
-    #[test]
-    fn testDivideZero() {
+    fn test_divide_inf() {
         let x = Complex::new(3.0, 4.0);
-        let z: Complex = x.divide(Complex.ZERO);
+        let w = Complex::new(f64::NEG_INFINITY, f64::INFINITY);
+        assert!(x.divide(&w) == complex::ZERO);
+
+        let z = w.divide(&x);
+        assert!(f64::is_nan(z.get_real()));
+        assert_that(f64::INFINITY, is(close_to(z.get_imaginary(), 0.0)));
+
+        let w = Complex::new(f64::INFINITY, f64::INFINITY);
+        let z = w.divide(&x);
+        assert!(f64::is_nan(z.get_imaginary()));
+        assert_that(f64::INFINITY, is(close_to(z.get_real(), 0.0)));
+
+        let w = Complex::new(1.0, f64::INFINITY);
+        let z = w.divide(&w);
+        assert!(f64::is_nan(z.get_real()));
+        assert!(f64::is_nan(z.get_imaginary()));
+    }
+
+    #[test]
+    fn test_divide_zero() {
+        let x = Complex::new(3.0, 4.0);
+        let z: Complex = x.divide(&complex::ZERO);
         // assert_that(z, Complex.INF); // See MATH-657
-        assert!(z == Complex.NaN);
+        assert!(z == complex::NAN);
     }
 
     #[test]
-    fn testDivideZeroZero() {
+    fn test_divide_zero_zero() {
         let x = Complex::new(0.0, 0.0);
-        let z: Complex = x.divide(Complex.ZERO);
-        assert!(z == Complex.NaN);
+        let z: Complex = x.divide(&complex::ZERO);
+        assert!(z == complex::NAN);
     }
 
     #[test]
-    fn testDivideNaN() {
+    fn test_divide_nan() {
         let x = Complex::new(3.0, 4.0);
-        let z: Complex = x.divide(Complex.NaN);
-        assert!(z.isNaN());
+        let z: Complex = x.divide(&complex::NAN);
+        assert!(z.is_nan());
     }
 
     #[test]
-    fn testDivideNaNInf() {
-       let z: Complex = oneInf.divide(Complex.ONE);
+    fn test_divide_nan_inf() {
+       let z: Complex = ONE_INF.divide(&complex::ONE);
        assert!(f64::is_nan(z.get_real()));
-       assert_that(f64::INFINITY,is(close_to( z.get_imaginary(), 0)));
+       assert_that(f64::INFINITY,is(close_to( z.get_imaginary(), 0.0)));
 
-       z = negInfNegInf.divide(oneNaN);
-       assert!(f64::is_nan(z.get_real()));
-       assert!(f64::is_nan(z.get_imaginary()));
-
-       z = negInfInf.divide(Complex.ONE);
+       let z = NEG_INF_NEG_INF.divide(&ONE_NAN);
        assert!(f64::is_nan(z.get_real()));
        assert!(f64::is_nan(z.get_imaginary()));
+
+       let z = NEG_INF_INF.divide(&complex::ONE);
+       assert!(f64::is_nan(z.get_real()));
+       assert!(f64::is_nan(z.get_imaginary()));
     }
 
     #[test]
-    fn testScalarDivide() {
+    fn test_scalar_divide() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = 2.0;
-        let yComplex = Complex::new(yDouble);
-        assert!(x.divide(yComplex) == x.divide(yDouble));
+        let y_double: f64 = 2.0;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.divide(&y_complex) == x.divide_f64(y_double));
     }
 
     #[test]
-    fn testScalarDivideNaN() {
+    fn test_scalar_divide_nan() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = Double.NaN;
-        let yComplex = Complex::new(yDouble);
-        assert!(x.divide(yComplex) == x.divide(yDouble));
+        let y_double: f64 = f64::NAN;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.divide(&y_complex) == x.divide_f64(y_double));
     }
 
     #[test]
-    fn testScalarDivideInf() {
-        let x = Complex::new(1,1);
-        let yDouble: f64 = Double.POSITIVE_INFINITY;
-        let yComplex = Complex::new(yDouble);
-        TestUtils.assertEquals(x.divide(yComplex), x.divide(yDouble), 0);
+    fn test_scalar_divide_inf() {
+        let x = Complex::new(1.0,1.0);
+        let y_double: f64 = f64::INFINITY;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.divide(&y_complex) == x.divide_f64(y_double));
 
-        yDouble = Double.NEGATIVE_INFINITY;
-        yComplex = Complex::new(yDouble);
-        TestUtils.assertEquals(x.divide(yComplex), x.divide(yDouble), 0);
+        let y_double = f64::NEG_INFINITY;
+        let y_complex = Complex::new_real(y_double);
+        assert!(x.divide(&y_complex) == x.divide_f64(y_double));
 
-        x = Complex::new(1, Double.NEGATIVE_INFINITY);
-        TestUtils.assertEquals(x.divide(yComplex), x.divide(yDouble), 0);
+        let x = Complex::new(1.0, f64::NEG_INFINITY);
+        assert!(x.divide(&y_complex) == x.divide_f64(y_double));
     }
 
     #[test]
-    fn testScalarDivideZero() {
-        let x = Complex::new(1,1);
-        TestUtils.assertEquals(x.divide(Complex.ZERO), x.divide(0), 0);
+    fn test_scalarDivideZero() {
+        let x = Complex::new(1.0,1.0);
+        assert!(x.divide(complex::ZERO) == x.divide_f64(0.0));
     }
 
     #[test]
@@ -436,6 +471,7 @@ mod tests {
         assert_that(expIm, is(close_to(act.get_imaginary(), FastMath.ulp(expIm))));
     }
 
+/*
     #[test]
     fn testReciprocalReal() {
         let z = Complex::new(-2.0, 0.0);
@@ -451,20 +487,20 @@ mod tests {
     #[test]
     fn testReciprocalInf() {
         let z = Complex::new(f64::INFINITY, f64::INFINITY);
-        assert!(z.reciprocal().equals(Complex.ZERO));
+        assert!(z.reciprocal().equals(complex::ZERO));
 
         z = Complex::new(1, f64::INFINITY).reciprocal();
-        assert_that(z, Complex.ZERO);
+        assert_that(z, complex::ZERO);
     }
 
     #[test]
     fn testReciprocalZero() {
-        assert_that(Complex.ZERO.reciprocal(), Complex.INF);
+        assert_that(complex::ZERO.reciprocal(), Complex.INF);
     }
 
     #[test]
-    fn testReciprocalNaN() {
-        assert!(Complex.NaN.reciprocal().isNaN());
+    fn testReciprocal_nan() {
+        assert!(complex::NAN.reciprocal().is_nan());
     }
 
     #[test]
@@ -477,22 +513,22 @@ mod tests {
     }
 
     #[test]
-    fn testMultiplyNaN() {
+    fn testMultiply_nan() {
         let x = Complex::new(3.0, 4.0);
-        let z: Complex = x.multiply(Complex.NaN);
-        Assert.assertSame(Complex.NaN, z);
-        z = Complex.NaN.multiply(5);
-        Assert.assertSame(Complex.NaN, z);
+        let z: Complex = x.multiply(complex::NAN);
+        Assert.assertSame(complex::NAN, z);
+        z = complex::NAN.multiply(5);
+        Assert.assertSame(complex::NAN, z);
     }
 
     #[test]
     fn testMultiplyInfInf() {
-        // assert!(infInf.multiply(infInf).isNaN()); // MATH-620
+        // assert!(infInf.multiply(infInf).is_nan()); // MATH-620
         assert!(infInf.multiply(infInf).isInfinite());
     }
 
     #[test]
-    fn testMultiplyNaNInf() {
+    fn testMultiply_nanInf() {
         let z = Complex::new(1,1);
         let w: Complex = z.multiply(infOne);
         assert_that(w.get_real(), is(close_to(f64::INFINITY, 0)));
@@ -507,7 +543,7 @@ mod tests {
         assert_that(w.get_real(), is(close_to(f64::INFINITY, 0)));
         assert_that(w.get_imaginary(), is(close_to(f64::INFINITY, 0)));
 
-        w = negInfNegInf.multiply(oneNaN);
+        w = negInfNegInf.multiply(one_nan);
         assert!(f64::is_nan(w.get_real()));
         assert!(f64::is_nan(w.get_imaginary()));
 
@@ -516,34 +552,34 @@ mod tests {
     }
 
     #[test]
-    fn testScalarMultiply() {
+    fn test_scalarMultiply() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = 2.0;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.multiply(yComplex), x.multiply(yDouble));
+        let y_double: f64 = 2.0;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.multiply(y_complex), x.multiply(y_double));
         zInt = -5;
-        let zComplex = Complex::new(zInt);
-        assert_that(x.multiply(zComplex), x.multiply(zInt));
+        let z_complex = Complex::new(zInt);
+        assert_that(x.multiply(z_complex), x.multiply(zInt));
     }
 
     #[test]
-    fn testScalarMultiplyNaN() {
+    fn test_scalarMultiply_nan() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = Double.NaN;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.multiply(yComplex), x.multiply(yDouble));
+        let y_double: f64 = f64::NAN;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.multiply(y_complex), x.multiply(y_double));
     }
 
     #[test]
-    fn testScalarMultiplyInf() {
+    fn test_scalarMultiplyInf() {
         let x = Complex::new(1, 1);
-        let yDouble: f64 = Double.POSITIVE_INFINITY;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.multiply(yComplex), x.multiply(yDouble));
+        let y_double: f64 = f64::INFINITY;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.multiply(y_complex), x.multiply(y_double));
 
-        yDouble = Double.NEGATIVE_INFINITY;
-        yComplex = Complex::new(yDouble);
-        assert_that(x.multiply(yComplex), x.multiply(yDouble));
+        y_double = Double.NEGATIVE_INFINITY;
+        y_complex = Complex::new(y_double);
+        assert_that(x.multiply(y_complex), x.multiply(y_double));
     }
 
     #[test]
@@ -555,13 +591,13 @@ mod tests {
     }
 
     #[test]
-    fn testNegateNaN() {
-        let z: Complex = Complex.NaN.negate();
-        assert!(z.isNaN());
+    fn testNegate_nan() {
+        let z: Complex = complex::NAN.negate();
+        assert!(z.is_nan());
     }
 
     #[test]
-    fn testSubtract() {
+    fn test_subtract() {
         let x = Complex::new(3.0, 4.0);
         let y = Complex::new(5.0, 6.0);
         let z: Complex = x.subtract(y);
@@ -570,17 +606,17 @@ mod tests {
     }
 
     #[test]
-    fn testSubtractNaN() {
+    fn test_subtract_nan() {
         let x = Complex::new(3.0, 4.0);
-        let z: Complex = x.subtract(Complex.NaN);
-        Assert.assertSame(Complex.NaN, z);
+        let z: Complex = x.subtract(complex::NAN);
+        Assert.assertSame(complex::NAN, z);
         z = Complex::new(1, f64::NAN);
         let w: Complex = x.subtract(z);
-        Assert.assertSame(Complex.NaN, w);
+        Assert.assertSame(complex::NAN, w);
     }
 
     #[test]
-    fn testSubtractInf() {
+    fn test_subtractInf() {
         let x = Complex::new(1, 1);
         let z = Complex::new(f64::INFINITY, 0);
         let w: Complex = x.subtract(z);
@@ -592,31 +628,32 @@ mod tests {
     }
 
     #[test]
-    fn testScalarSubtract() {
+    fn test_scalarSubtract() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = 2.0;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.subtract(yComplex), x.subtract(yDouble));
+        let y_double: f64 = 2.0;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.subtract(y_complex), x.subtract(y_double));
     }
 
     #[test]
-    fn testScalarSubtractNaN() {
+    fn test_scalarSubtract_nan() {
         let x = Complex::new(3.0, 4.0);
-        let yDouble: f64 = Double.NaN;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.subtract(yComplex), x.subtract(yDouble));
+        let y_double: f64 = f64::NAN;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.subtract(y_complex), x.subtract(y_double));
     }
 
     #[test]
-    fn testScalarSubtractInf() {
+    fn test_scalarSubtractInf() {
         let x = Complex::new(1, 1);
-        let yDouble: f64 = f64::INFINITY;
-        let yComplex = Complex::new(yDouble);
-        assert_that(x.subtract(yComplex), x.subtract(yDouble));
+        let y_double: f64 = f64::INFINITY;
+        let y_complex = Complex::new(y_double);
+        assert_that(x.subtract(y_complex), x.subtract(y_double));
 
         x = Complex::new(f64::INFINITY, 0);
-        assert_that(x.subtract(yComplex), x.subtract(yDouble));
+        assert_that(x.subtract(y_complex), x.subtract(y_double));
     }
+    */
 }
 
 
