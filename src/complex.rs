@@ -1,4 +1,4 @@
-
+#![allow(dead_code)] 
 
 use std::f64;
 
@@ -187,7 +187,9 @@ impl Complex {
 mod tests {
 	use hamcrest::*;	
 	use complex;
-	use complex::Complex;	
+	use complex::Complex;
+	#[macro_use]
+	use assert;	
 	use std::f64;
 	
 	const ONE_INF: Complex = Complex {real: 1.0, imaginary: f64::INFINITY, is_nan: false, is_infinite: true};
@@ -477,14 +479,16 @@ mod tests {
     	}
     }
 
-    // #[test]
+    #[test]
     fn testReciprocal() {
         let z = Complex::new(5.0, 6.0);
         let act = z.reciprocal();
         let expRe = 5.0 / 61.0;
         let expIm = -6.0 / 61.0;
-        assert_that(expRe, is(close_to(act.get_real(), ulp(&expRe))));
-        assert_that(expIm, is(close_to(act.get_imaginary(), ulp(&expIm))));
+        assert_within_delta!(expRe, act.get_real(), ulp(&expRe));
+        assert_within_delta!(expIm, act.get_imaginary(), 2.0 * ulp(&expIm));
+        // assert::Assert::differs_within_delta(expRe, act.get_real(), ulp(&expRe));
+        // assert::Assert::differs_within_delta(expIm, act.get_imaginary(), ulp(&expIm));
     }
 
 /*

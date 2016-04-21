@@ -1,6 +1,13 @@
-#[cfg(test)]
-extern crate hamcrest;
+#![allow(dead_code)] 
+#[cfg(test)] extern crate hamcrest;
+
+#[cfg(test)] #[macro_use] pub mod assert;
 
 pub mod base;
-// pub mod complex;
-pub mod assert;
+pub mod fastmath;
+pub mod complex;
+
+
+static a:i64 = (0x28be60db << 32) | 0x9391054a;
+
+static b: f64 = 1.0 / 3.0;
