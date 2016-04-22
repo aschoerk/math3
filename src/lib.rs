@@ -4,7 +4,7 @@
 #[cfg(test)] #[macro_use] pub mod assert;
 
 pub mod base;
-// pub mod fastmath;
+pub mod fastmath;
 // pub mod complex;
 pub mod rsutils;
 pub mod precision;

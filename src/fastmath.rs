@@ -1,22 +1,23 @@
 #![allow(dead_code)] 
 use std::f64;
+use rsutils::*;
 
 /** Archimede's constant PI, ratio of circle circumference to diameter. */
-pub static PI: f64 = 105414357.0 / 33554432.0 + 1.984187159361080883e-9;
+pub const PI: f64 = 105414357.0 / 33554432.0 + 1.984187159361080883e-9;
 /** Napier's constant e, base of the natural logarithm. */
-pub static E: f64 = 2850325.0 / 1048576.0 + 8.254840070411028747e-8;
+pub const E: f64 = 2850325.0 / 1048576.0 + 8.254840070411028747e-8;
 
 /** Index of exp(0) in the array of integer exponentials. */
 const EXP_INT_TABLE_MAX_INDEX: i16 = 750;
 /** Length of the array of integer exponentials. */
-static EXP_INT_TABLE_LEN: i16 = EXP_INT_TABLE_MAX_INDEX * 2;
+const EXP_INT_TABLE_LEN: i16 = EXP_INT_TABLE_MAX_INDEX * 2;
 /** Logarithm table length. */
-static LN_MANT_LEN: i16 = 1024;
+const LN_MANT_LEN: i16 = 1024;
 /** Exponential fractions table length. */
-static EXP_FRAC_TABLE_LEN: i16 = 1025; // 0, 1/1024, ... 1024/1024
+const EXP_FRAC_TABLE_LEN: i16 = 1025; // 0, 1/1024, ... 1024/1024
 
 /** StrictMath.log(Double.MAX_VALUE): {@value} */
-// static LOG_MAX_VALUE: f64 = f64::MAX.ln();
+// const LOG_MAX_VALUE: f64 = f64::MAX.ln();
 
 /** Indicator for tables initialization.
  * <p>
@@ -25,16 +26,16 @@ static EXP_FRAC_TABLE_LEN: i16 = 1025; // 0, 1/1024, ... 1024/1024
  * already computed ones provided as literal arrays below.
  * </p>
  */
-static RECOMPUTE_TABLES_AT_RUNTIME: bool = false;
+const RECOMPUTE_TABLES_AT_RUNTIME: bool = false;
 
 /** log(2) (high bits). */
-static LN_2_A: f64 = 0.693147063255310059;
+const LN_2_A: f64 = 0.693147063255310059;
 
 /** log(2) (low bits). */
-static LN_2_B: f64 = 1.17304635250823482e-7;
+const LN_2_B: f64 = 1.17304635250823482e-7;
 
  /** Coefficients for log, when input 0.99 < x < 1.01. */
-static LN_QUICK_COEF: [[f64; 2]; 9] = [
+const LN_QUICK_COEF: [[f64; 2]; 9] = [
         [1.0, 5.669184079525E-24],
         [-0.25, -0.25],
         [0.3333333134651184, 1.986821492305628E-8],
@@ -47,7 +48,7 @@ static LN_QUICK_COEF: [[f64; 2]; 9] = [
     ];
 
     /** Coefficients for log in the range of 1.0 < x < 1.0 + 2^-10. */
-static LN_HI_PREC_COEF: [[f64;2];6] = [
+const LN_HI_PREC_COEF: [[f64;2];6] = [
     [1.0, -6.032174644509064E-23],
     [-0.25, -0.25],
     [0.3333333134651184, 1.9868161777724352E-8],
@@ -57,10 +58,10 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
 ];
 
 /** Sine, Cosine, Tangent tables are for 0, 1/8, 2/8, ... 13/8 = PI/2 approx. */
-    static SINE_TABLE_LEN: i16 = 14;
+    const SINE_TABLE_LEN: i16 = 14;
 
     /** Sine table (high bits). */
-    static SINE_TABLE_A: [f64; 14] =
+    const SINE_TABLE_A: [f64; 14] =
         [
          0.0,
          0.1246747374534607,
@@ -79,7 +80,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     ];
 
     /** Sine table (low bits). */
-    static SINE_TABLE_B: [f64; 14] =
+    const SINE_TABLE_B: [f64; 14] =
         [
          0.0,
         -4.068233003401932E-9,
@@ -98,7 +99,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     ];
 
     /** Cosine table (high bits). */
-    static COSINE_TABLE_A: [f64; 14] =
+    const COSINE_TABLE_A: [f64; 14] =
         [
          1.0,
          0.9921976327896118,
@@ -117,7 +118,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     ];
 
     /** Cosine table (low bits). */
-    static COSINE_TABLE_B: [f64; 14] =
+    const COSINE_TABLE_B: [f64; 14] =
         [
          0.0,
          3.4439717236742845E-8,
@@ -137,7 +138,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
 
 
     /** Tangent table, used by atan() (high bits). */
-    static TANGENT_TABLE_A: [f64; 14] =
+    const TANGENT_TABLE_A: [f64; 14] =
         [
          0.0,
          0.1256551444530487,
@@ -156,7 +157,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     ];
 
     /** Tangent table, used by atan() (low bits). */
-    static TANGENT_TABLE_B: [f64; 14] =
+    const TANGENT_TABLE_B: [f64; 14] =
         [
          0.0,
         -7.877917738262007E-9,
@@ -175,7 +176,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     ];
     
        /** Bits of 1/(2*pi), need for reducePayneHanek(). */
-    static  RECIP_2PI: [i64; 18] = [
+    const  RECIP_2PI: [i64; 18] = [
         (0x28be60db << 32) | 0x9391054a,
         (0x7f09d5f4 << 32) | 0x7d4d3770,
         (0x36d8a566 << 32) | 0x4f10e410,
@@ -196,7 +197,7 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
          0x9afed7ec << 32  ];
 
     /** Bits of pi/4, need for reducePayneHanek(). */
-    static PI_O_4_BITS: [i64; 2] = [
+    const PI_O_4_BITS: [i64; 2] = [
         (0xc90fdaa2 << 32) | 0x2168c234,
         (0xc4c6628b << 32) | 0x80dc1cd1 ];
 
@@ -204,10 +205,10 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
      * This is used by sinQ, because its faster to do a table lookup than
      * a multiply in this time-critical routine
      */
-    static EIGHTHS: [f64; 14] = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0, 1.125, 1.25, 1.375, 1.5, 1.625];
+    const EIGHTHS: [f64; 14] = [0.0, 0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0, 1.125, 1.25, 1.375, 1.5, 1.625];
 
     /** Table of 2^((n+2)/3) */
-    static CBRTTWO: [f64; 5] = [ 0.6299605249474366,
+    const CBRTTWO: [f64; 5] = [ 0.6299605249474366,
                                             0.7937005259840998,
                                             1.0,
                                             1.2599210498948732,
@@ -227,63 +228,65 @@ static LN_HI_PREC_COEF: [[f64;2];6] = [
     const HEX_40000000: i64 = 0x40000000; // 1073741824L
 
     /** Mask used to clear low order 30 bits */
-    static MASK_30BITS: i64 = -1 - (HEX_40000000 -1); // 0xFFFFFFFFC0000000L;
+    const MASK_30BITS: i64 = -1 - (HEX_40000000 -1); // 0xFFFFFFFFC0000000L;
 
     /** Mask used to clear the non-sign part of an int. */
-    static MASK_NON_SIGN_INT: i32 = 0x7fffffff;
+    const MASK_NON_SIGN_INT: i32 = 0x7fffffff;
 
     /** Mask used to clear the non-sign part of a long. */
-    static MASK_NON_SIGN_LONG: i64 = 0x7fffffffffffffff;
+    const MASK_NON_SIGN_LONG: i64 = 0x7fffffffffffffff;
 
     /** Mask used to extract exponent from double bits. */
-    static MASK_DOUBLE_EXPONENT: i64 = 0x7ff0000000000000;
+    const MASK_DOUBLE_EXPONENT: i64 = 0x7ff0000000000000;
 
     /** Mask used to extract mantissa from double bits. */
-    static MASK_DOUBLE_MANTISSA: i64 = 0x000fffffffffffff;
+    const MASK_DOUBLE_MANTISSA: i64 = 0x000fffffffffffff;
 
     /** Mask used to add implicit high order bit for normalized double. */
-    static IMPLICIT_HIGH_BIT: i64 = 0x0010000000000000;
+    const IMPLICIT_HIGH_BIT: i64 = 0x0010000000000000;
 
     /** 2^52 - double numbers this large must be integral (no fraction) or NaN or Infinite */
-    static TWO_POWER_52: f64 = 4503599627370496.0;
+    const TWO_POWER_52: f64 = 4503599627370496.0;
 
     /** Constant: {@value}. */
-    static F_1_3: f64 = 1.0 / 3.0;
+    const F_1_3: f64 = 1.0 / 3.0;
     /** Constant: {@value}. */
-    static F_1_5: f64 = 1.0 / 5.0;
+    const F_1_5: f64 = 1.0 / 5.0;
     /** Constant: {@value}. */
-    static F_1_7: f64 = 1.0 / 7.0;
+    const F_1_7: f64 = 1.0 / 7.0;
     /** Constant: {@value}. */
-    static F_1_9: f64 = 1.0 / 9.0;
+    const F_1_9: f64 = 1.0 / 9.0;
     /** Constant: {@value}. */
-    static F_1_11: f64 = 1.0 / 11.0;
+    const F_1_11: f64 = 1.0 / 11.0;
     /** Constant: {@value}. */
-    static F_1_13: f64 = 1.0 / 13.0;
+    const F_1_13: f64 = 1.0 / 13.0;
     /** Constant: {@value}. */
-    static F_1_15: f64 = 1.0 / 15.0;
+    const F_1_15: f64 = 1.0 / 15.0;
     /** Constant: {@value}. */
-    static F_1_17: f64 = 1.0 / 17.0;
+    const F_1_17: f64 = 1.0 / 17.0;
     /** Constant: {@value}. */
-    static F_3_4: f64 = 3.0 / 4.0;
+    const F_3_4: f64 = 3.0 / 4.0;
     /** Constant: {@value}. */
-    static F_15_16: f64 = 15.0 / 16.0;
+    const F_15_16: f64 = 15.0 / 16.0;
     /** Constant: {@value}. */
-    static F_13_14: f64 = 13.0 / 14.0;
+    const F_13_14: f64 = 13.0 / 14.0;
     /** Constant: {@value}. */
-    static F_11_12: f64 = 11.0 / 12.0;
+    const F_11_12: f64 = 11.0 / 12.0;
     /** Constant: {@value}. */
-    static F_9_10: f64 = 9.0 / 10.0;
+    const F_9_10: f64 = 9.0 / 10.0;
     /** Constant: {@value}. */
-    static F_7_8: f64 = 7.0 / 8.0;
+    const F_7_8: f64 = 7.0 / 8.0;
     /** Constant: {@value}. */
-    static F_5_6: f64 = 5.0 / 6.0;
+    const F_5_6: f64 = 5.0 / 6.0;
     /** Constant: {@value}. */
-    static F_1_2: f64 = 1.0 / 2.0;
+    const F_1_2: f64 = 1.0 / 2.0;
     /** Constant: {@value}. */
-    static F_1_4: f64 = 1.0 / 4.0;
+    const F_1_4: f64 = 1.0 / 4.0;
 
  
-
+pub fn abs(x: f64) -> f64 {
+	long_bits_to_double(&(MASK_NON_SIGN_LONG & double_to_raw_long_bits(&x)))
+}
 
 
 struct FastMath {
