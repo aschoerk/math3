@@ -9,7 +9,7 @@ extern crate lazy_static;
 pub mod base;
 // pub mod complex;
 pub mod rsutils;
-// pub mod fastmath;
+pub mod fastmath;
 // pub mod precision;
 
 

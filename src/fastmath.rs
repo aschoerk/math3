@@ -314,7 +314,7 @@ impl F64 {
 
         // first simple and fast handling when 2^n can be represented using normal numbers
         if (n > -1023) && (n < 1024) {
-            return d * long_bits_to_double(&(((n + 1023) as u64) << 52));
+            return d * long_bits_to_double(&(((n + 0x3ff) as u64) << 52));
         } 
 
         // handle special cases
@@ -333,30 +333,30 @@ impl F64 {
         let bits = double_to_raw_long_bits(&d);
         let sign = bits & 0x8000000000000000u64;
         let exponent = ((bits as i64 >> 52) as i32) & 0x7ff;
-        let mantissa   = (bits & 0x000fffffffffffff) as i64;
+        let mut mantissa   = bits & 0x000fffffffffffff;
 
         // compute scaled exponent
-        let scaledExponent = exponent + n;
+        let mut scaled_exponent = exponent + n;
 
         if n < 0 {
             // we are really in the case n <= -1023
-            if scaledExponent > 0 {
+            if scaled_exponent > 0 {
                 // both the input and the result are normal numbers, we only adjust the exponent
-                long_bits_to_double(&(sign | ((scaledExponent as u64) << 52) | mantissa as u64))
-            } else if scaledExponent > -53 {
+                long_bits_to_double(&(sign | ((scaled_exponent as u64) << 52) | mantissa))
+            } else if scaled_exponent > -53 {
                 // the input is a normal number and the result is a subnormal number
 
                 // recover the hidden mantissa bit
-                mantissa = (mantissa as u64 | (1u64 << 52)) as i64;
+                mantissa = mantissa | (1u64 << 52);
 
                 // scales down complete mantissa, hence losing least significant bits
-                let mostSignificantLostBit = (mantissa as u64 & (1u64 << (-scaledExponent))) as i64;
-                mantissa >>= 1 - scaledExponent;
-                if mostSignificantLostBit != 0 {
+                let most_significant_lost_bit = mantissa & (1u64 << (-scaled_exponent));
+                mantissa >>= 1 - scaled_exponent;
+                if most_significant_lost_bit != 0 {
                     // we need to add 1 bit to round up the result
                     mantissa += 1;
                 }
-                long_bits_to_double(&(sign | mantissa as u64))
+                long_bits_to_double(&(sign | mantissa))
 
             } else {
                 // no need to compute the mantissa, the number scales down to 0
@@ -369,20 +369,20 @@ impl F64 {
                 // the input number is subnormal, normalize it
                 while (mantissa >> 52) != 1 {
                     mantissa <<= 1;
-                    --scaledExponent;
+                    --scaled_exponent;
                 }
-                scaledExponent += 1;
+                scaled_exponent += 1;
                 
-                mantissa = (mantissa as u64 & 0x000fffffffffffff) as i64;
+                mantissa = mantissa & 0x000fffffffffffff;
 
-                if scaledExponent < 2047 {
-                    long_bits_to_double(&(sign | ((scaledExponent as i64) << 52) | mantissa))
+                if scaled_exponent < 2047 {
+                    long_bits_to_double(&(sign | ((scaled_exponent as u64) << 52) | mantissa))
                 } else {
                     if sign == 0 { f64::INFINITY } else { f64::NEG_INFINITY }
                 }
 
-            } else if scaledExponent < 2047 {
-                long_bits_to_double(&(sign | ((scaledExponent as i64) << 52) | mantissa))
+            } else if scaled_exponent < 2047 {
+                long_bits_to_double(&(sign | ((scaled_exponent as u64) << 52) | mantissa))
             } else {
                 if sign == 0 { f64::INFINITY } else { f64::NEG_INFINITY }
             }
