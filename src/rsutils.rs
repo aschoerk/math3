@@ -1,19 +1,19 @@
 
 use std::mem;
     
-pub fn double_to_raw_long_bits(double: &f64) -> i64 {
+pub fn double_to_raw_long_bits(double: &f64) -> u64 {
 	unsafe { mem::transmute(*double) }	
 }
 
-pub fn long_bits_to_double(long: &i64) -> f64 {
+pub fn long_bits_to_double(long: &u64) -> f64 {
 	unsafe { mem::transmute(*long) }
 }
 
-pub fn float_to_raw_int_bits(float: &f32) -> i32 {
+pub fn float_to_raw_int_bits(float: &f32) -> u32 {
 	unsafe { mem::transmute(*float) }	
 }
 
-pub fn int_bits_to_float(int: &i32) -> f32 {
+pub fn int_bits_to_float(int: &u32) -> f32 {
 	unsafe { mem::transmute(*int) }
 }
 
