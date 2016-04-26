@@ -10,7 +10,7 @@ pub mod base;
 // pub mod complex;
 pub mod rsutils;
 pub mod fastmath;
-// pub mod precision;
+pub mod precision;
 
 
 static a:i64 = (0x28be60db << 32) | 0x9391054a;

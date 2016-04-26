@@ -1,7 +1,9 @@
 #![allow(dead_code)] 
+#![allow(unused_parens)]
 use std::f64;
 use std::f32;
 use rsutils::*;
+use precision;
 
 /** Archimede's constant PI, ratio of circle circumference to diameter. */
 pub const PI: f64 = 105414357.0 / 33554432.0 + 1.984187159361080883e-9;
@@ -11,11 +13,11 @@ pub const E: f64 = 2850325.0 / 1048576.0 + 8.254840070411028747e-8;
 /** Index of exp(0) in the array of integer exponentials. */
 const EXP_INT_TABLE_MAX_INDEX: u16 = 750;
 /** Length of the array of integer exponentials. */
-const EXP_INT_TABLE_LEN: u16 = EXP_INT_TABLE_MAX_INDEX * 2;
+const EXP_INT_TABLE_LEN: usize = (EXP_INT_TABLE_MAX_INDEX * 2) as usize;
 /** Logarithm table length. */
-const LN_MANT_LEN: u16 = 1024;
+const LN_MANT_LEN: usize = 1024;
 /** Exponential fractions table length. */
-const EXP_FRAC_TABLE_LEN: u16 = 1025; // 0, 1/1024, ... 1024/1024
+const EXP_FRAC_TABLE_LEN: usize = 1025; // 0, 1/1024, ... 1024/1024
 
 /** StrictMath.log(Double.MAX_VALUE): {@value} */
 // const LOG_MAX_VALUE: f64 = f64::MAX.ln();
@@ -283,11 +285,287 @@ const LN_HI_PREC_COEF: [[f64;2];6] = [
     const F_1_2: f64 = 1.0 / 2.0;
     /** Constant: {@value}. */
     const F_1_4: f64 = 1.0 / 4.0;
+    
+    fn a(i: i32) -> [f64; EXP_INT_TABLE_LEN] {
+    	[0.0;EXP_INT_TABLE_LEN]
+    }
+    fn b(i: i32) -> [f64; EXP_FRAC_TABLE_LEN] {
+    	[0.0;EXP_FRAC_TABLE_LEN]
+    }
+    
+    lazy_static! {
+    	pub static ref EXP_INT_TABLE_A: [f64;EXP_INT_TABLE_LEN] = a(1);
+    	pub static ref EXP_INT_TABLE_B: [f64;EXP_INT_TABLE_LEN] = a(2);
+    	pub static ref EXP_FRAC_TABLE_A: [f64;EXP_FRAC_TABLE_LEN] = b(1);
+    	pub static ref EXP_FRAC_TABLE_B: [f64;EXP_FRAC_TABLE_LEN] = b(2);
+    	pub static ref LOG_MAX_VALUE: f64 = f64::ln(f64::MAX);
+    }
 
 pub struct F64 {
 	
 } 
 impl F64 {
+	 /**
+     * Get the high order bits from the mantissa.
+     * Equivalent to adding and subtracting HEX_40000 but also works for very large numbers
+     *
+     * @param d the value to split
+     * @return the high order part of the mantissa
+     */
+    fn double_high_part(d: f64) -> f64 {
+        if (d > -precision::SAFE_MIN && d < precision::SAFE_MIN){
+            return d; // These are un-normalised - don't try to convert
+        }
+        let xl = double_to_raw_long_bits(&d); // can take raw bits because just gonna convert it back
+        xl &= MASK_30BITS; // Drop low order bits
+        long_bits_to_double(&xl)
+    }
+    
+     /** Compute the square root of a number.
+     * <p><b>Note:</b> this implementation currently delegates to {@link Math#sqrt}
+     * @param a number on which evaluation is done
+     * @return square root of a
+     */
+    pub fn sqrt(a: f64) -> f64 {
+        f64::sqrt(a)
+    }
+    
+    /**
+     * Internal helper method for exponential function.
+     * @param x original argument of the exponential function
+     * @param extra extra bits of precision on input (To Be Confirmed)
+     * @param hiPrec extra bits of precision on output (To Be Confirmed)
+     * @return exp(x)
+     */
+    fn exp_prec(x: f64, extra: f64, hi_prec_o: &mut Option<&mut [f64;2]>) -> f64 {
+        let mut int_part_a: f64 = 0.0;
+        let mut int_part_b: f64 = 0.0;
+        let int_val: i32 = x as i32;
+
+        /* Lookup exp(floor(x)).
+         * int_part_a will have the upper 22 bits, int_part_b will have the lower
+         * 52 bits.
+         */
+        if x < 0.0 {
+
+            // We don't check against int_val here as conversion of large negative double values
+            // may be affected by a JIT bug. Subsequent comparisons can safely use int_val
+            if x < -746.0 {
+            	match *hi_prec_o {
+            		Some (ref mut hi_prec) => {
+            			hi_prec[0] = 0.0;
+            			hi_prec[1] = 0.0;
+            		} ,
+            		None => {},
+            	}
+                return 0.0;
+            }
+
+            if (int_val < -709) {
+                /* This will produce a subnormal output */
+                let result = F64::exp_prec(x+40.19140625, extra, hi_prec_o) / 285040095144011776.0;
+            	match *hi_prec_o {
+            		Some (ref mut hi_prec) => {
+            			hi_prec[0] /= 285040095144011776.0;
+            			hi_prec[1] /= 285040095144011776.0;
+            		} ,
+            		None => {},
+            	}                
+                return result;
+            }
+
+            if (int_val == -709) {
+                /* exp(1.494140625) is nearly a machine number... */
+                let result = F64::exp_prec(x+1.494140625, extra, hi_prec_o) / 4.455505956692756620;
+                match *hi_prec_o {
+            		Some (ref mut hi_prec) => {
+            			hi_prec[0] /= 4.455505956692756620;
+            			hi_prec[1] /= 4.455505956692756620;
+            		} ,
+            		None => {},
+            	}
+                return result;
+            }
+
+            int_val -= 1;
+
+        } else {
+            if (int_val > 709) {
+            	match *hi_prec_o {
+            		Some (ref mut hi_prec) => {
+            			hi_prec[0] = f64::INFINITY;
+            			hi_prec[1] = 0.0;
+            		} ,
+            		None => {},
+            	}                
+                return f64::INFINITY;
+            }
+
+        }
+
+        int_part_a = EXP_INT_TABLE_A[EXP_INT_TABLE_MAX_INDEX+int_val];
+        int_part_b = EXP_INT_TABLE_B[EXP_INT_TABLE_MAX_INDEX+int_val];
+
+        /* Get the fractional part of x, find the greatest multiple of 2^-10 less than
+         * x and look up the exp function of it.
+         * frac_part_a will have the upper 22 bits, frac_part_b the lower 52 bits.
+         */
+        let int_frac: f32 = ((x - int_val) * 1024.0) as i32;
+        let frac_part_a: f64 = EXP_FRAC_TABLE_A[int_frac];
+        let frac_part_b: f64 = EXP_FRAC_TABLE_B[int_frac];
+
+        /* epsilon is the difference in x from the nearest multiple of 2^-10.  It
+         * has a value in the range 0 <= epsilon < 2^-10.
+         * Do the subtraction from x as the last step to avoid possible loss of precision.
+         */
+        let epsilon: f64 = x - (int_val + int_frac / 1024.0);
+
+        /* Compute z = exp(epsilon) - 1.0 via a minimax polynomial.  z has
+       full double precision (52 bits).  Since z < 2^-10, we will have
+       62 bits of precision when combined with the constant 1.  This will be
+       used in the last addition below to get proper rounding. */
+
+        /* Remez generated polynomial.  Converges on the interval [0, 2^-10], error
+       is less than 0.5 ULP */
+        let z: f64 = 0.04168701738764507;
+        z = z * epsilon + 0.1666666505023083;
+        z = z * epsilon + 0.5000000000042687;
+        z = z * epsilon + 1.0;
+        z = z * epsilon + -3.940510424527919E-20;
+
+        /* Compute (int_part_a+int_part_b) * (frac_part_a+frac_part_b) by binomial
+       expansion.
+       tempA is exact since int_part_a and int_part_b only have 22 bits each.
+       tempB will have 52 bits of precision.
+         */
+        let tempA: f64 = int_part_a * frac_part_a;
+        let tempB: f64 = int_part_a * frac_part_b + int_part_b * frac_part_a + int_part_b * frac_part_b;
+
+        /* Compute the result.  (1+z)(tempA+tempB).  Order of operations is
+       important.  For accuracy add by increasing size.  tempA is exact and
+       much larger than the others.  If there are extra bits specified from the
+       pow() function, use them. */
+        let tempC: f64 = tempB + tempA;
+
+        // If tempC is positive infinite, the evaluation below could result in NaN,
+        // because z could be negative at the same time.
+        if tempC == f64::INFINITY {
+            return f64::INFINITY;
+        }
+
+        let result: f64 = 
+	        if extra != 0.0 {
+	            tempC*extra*z + tempC*extra + tempC*z + tempB + tempA
+	        } else {
+	            tempC*z + tempB + tempA
+	        };
+
+		match *hi_prec_o {
+    		Some (ref mut hi_prec) => {
+    			hi_prec[0] = tempA;
+    			hi_prec[1] = tempC*extra*z + tempC*extra + tempC*z + tempB;
+    		} ,
+    		None => {},
+    	}
+
+        result
+    }
+    
+    /**
+     * Exponential function.
+     *
+     * Computes exp(x), function result is nearly rounded.   It will be correctly
+     * rounded to the theoretical value for 99.9% of input values, otherwise it will
+     * have a 1 ULP error.
+     *
+     * Method:
+     *    Lookup intVal = exp(int(x))
+     *    Lookup fracVal = exp(int(x-int(x) / 1024.0) * 1024.0 );
+     *    Compute z as the exponential of the remaining bits by a polynomial minus one
+     *    exp(x) = intVal * fracVal * (1 + z)
+     *
+     * Accuracy:
+     *    Calculation is done with 63 bits of precision, so result should be correctly
+     *    rounded for 99.9% of input values, with less than 1 ULP error otherwise.
+     *
+     * @param x   a double
+     * @return double e<sup>x</sup>
+     */
+    pub fn exp(x: f64) -> f64 {
+        return F64::exp_prec(x, 0.0, None);
+    }
+
+    
+     /** Compute the hyperbolic cosine of a number.
+     * @param x number on which evaluation is done
+     * @return hyperbolic cosine of x
+     */
+    pub fn cosh(x: f64) -> f64 {
+      if x != x {
+          return x;
+      }
+
+      // cosh[z] = (exp(z) + exp(-z))/2
+
+      // for numbers with magnitude 20 or so,
+      // exp(-z) can be ignored in comparison with exp(z)
+
+      if x > 20 {
+          if x >= LOG_MAX_VALUE {
+              // Avoid overflow (MATH-905).
+              let t = F64::exp(0.5 * x);
+              (0.5 * t) * t
+          } else {
+               0.5 * F64::exp(x)
+          }
+      } else if x < -20 {
+          if x <= -LOG_MAX_VALUE {
+              // Avoid overflow (MATH-905).
+              let t = F64::exp(-0.5 * x);
+              (0.5 * t) * t
+          } else {
+              0.5 * F64::exp(-x)
+          }
+      }
+
+      let hi_prec: [f64; 2] = [0.0, 0.0];
+      if (x < 0.0) {
+          x = -x;
+      }
+      F64::exp_prec(x, 0.0, Some(hi_prec));
+
+      let mut ya = hi_prec[0] + hi_prec[1];
+      let mut yb = -(ya - hi_prec[0] - hi_prec[1]);
+
+      let mut temp = ya * HEX_40000000;
+      let yaa = ya + temp - temp;
+      let yab = ya - yaa;
+
+      // recip = 1/y
+      let recip = 1.0/ya;
+      let mut temp = recip * HEX_40000000;
+      let recipa = recip + temp - temp;
+      let mut recipb = recip - recipa;
+
+      // Correct for rounding in division
+      recipb += (1.0 - yaa*recipa - yaa*recipb - yab*recipa - yab*recipb) * recip;
+      // Account for yb
+      recipb += -yb * recip * recip;
+
+      // y = y + 1/y
+      temp = ya + recipa;
+      yb += -(temp - ya - recipa);
+      ya = temp;
+      temp = ya + recipb;
+      yb += -(temp - ya - recipb);
+      ya = temp;
+
+      let result = ya + yb;
+      result *= 0.5;
+      result
+    }
+
+	
 	pub fn abs(x: f64) -> f64 {
 		long_bits_to_double(&(MASK_NON_SIGN_LONG & double_to_raw_long_bits(&x)))
 	}
@@ -390,10 +668,65 @@ impl F64 {
     }  // scalb
     
     
+    /**
+     * Get the next machine representable number after a number, moving
+     * in the direction of another number.
+     * <p>
+     * The ordering is as follows (increasing):
+     * <ul>
+     * <li>-INFINITY</li>
+     * <li>-MAX_VALUE</li>
+     * <li>-MIN_VALUE</li>
+     * <li>-0.0</li>
+     * <li>+0.0</li>
+     * <li>+MIN_VALUE</li>
+     * <li>+MAX_VALUE</li>
+     * <li>+INFINITY</li>
+     * <li></li>
+     * <p>
+     * If arguments compare equal, then the second argument is returned.
+     * <p>
+     * If {@code direction} is greater than {@code d},
+     * the smallest machine representable number strictly greater than
+     * {@code d} is returned; if less, then the largest representable number
+     * strictly less than {@code d} is returned.</p>
+     * <p>
+     * If {@code d} is infinite and direction does not
+     * bring it back to finite numbers, it is returned unchanged.</p>
+     *
+     * @param d base number
+     * @param direction (the only important thing is whether
+     * {@code direction} is greater or smaller than {@code d})
+     * @return the next machine representable number in the specified direction
+     */
+    pub fn nextAfter(d: f64, direction: f64) -> f64 {
+        // handling of some important special cases
+        if (d.is_nan() || direction.is_nan()) {
+            return f64::NAN;
+        } else if (d == direction) {
+            return direction;
+        } else if (d.is_infinite()) {
+            return if d < 0.0 { -f64::MAX } else  { f64::MAX };
+        } else if (d == 0.0) {
+            return if direction < 0.0 { -f64::MIN_POSITIVE } else { f64::MIN_POSITIVE };
+        }
+        // special cases MAX_VALUE to infinity and  MIN_VALUE to 0
+        // are handled just as normal numbers
+        // can use raw bits since already dealt with infinity and NaN
+        let bits = double_to_raw_long_bits(&d);
+        let sign = bits & 0x8000000000000000u64;
+        if ((direction < d) ^ (sign == 0)) {
+            return long_bits_to_double(sign | ((bits & 0x7fffffffffffffff) + 1));
+        } else {
+            return long_bits_to_double(sign | ((bits & 0x7fffffffffffffff) - 1));
+        }   
+    }
+    
     
 }
 
 pub struct F32 {
+	
 	
 } 
 impl F32 {
@@ -412,6 +745,147 @@ impl F32 {
 			F32::abs(x - int_bits_to_float(&(float_to_raw_int_bits(&x) ^ 1)))
 		}
 	}
+	
+	 /**
+     * Multiply a double number by a power of 2.
+     * @param d number to multiply
+     * @param n power of 2
+     * @return d &times; 2<sup>n</sup>
+     */
+    pub fn scalb(d: f32, n: i32) -> f32 {
+
+        // first simple and fast handling when 2^n can be represented using normal numbers
+        if (n > -127) && (n < 128) {
+            return d * int_bits_to_float(&(((n + 127) as u32) << 23));
+        } 
+
+        // handle special cases
+        if d.is_nan() || d.is_infinite() || (d == 0.0) {
+            return d;
+        }
+        
+        if n < -277 {
+            return if d > 0.0 { 0.0 } else { -0.0 };
+        }
+        if n > 276 {
+            return if d > 0.0 { f32::INFINITY } else {  f32::NEG_INFINITY };
+        }
+
+        // decompose d
+        let bits = double_to_raw_long_bits(&d);
+        let sign = bits & 0x80000000u32;
+        let exponent = ((bits as i32 >> 23) as i32) & 0xff;
+        let mut mantissa   = bits & 0x007fffff;
+
+        // compute scaled exponent
+        let mut scaled_exponent = exponent + n;
+
+        if n < 0 {
+            // we are really in the case n <= -127
+            if scaled_exponent > 0 {
+                // both the input and the result are normal numbers, we only adjust the exponent
+                long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+            } else if scaled_exponent > -24 {
+                // the input is a normal number and the result is a subnormal number
+
+                // recover the hidden mantissa bit
+                mantissa = mantissa | (1u32 << 23);
+
+                // scales down complete mantissa, hence losing least significant bits
+                let most_significant_lost_bit = mantissa & (1u32 << (-scaled_exponent));
+                mantissa >>= 1 - scaled_exponent;
+                if most_significant_lost_bit != 0 {
+                    // we need to add 1 bit to round up the result
+                    mantissa += 1;
+                }
+                long_bits_to_double(&(sign | mantissa))
+
+            } else {
+                // no need to compute the mantissa, the number scales down to 0
+                if sign == 0 { 0.0 } else { -0.0 }
+            }
+        } else {
+            // we are really in the case n >= 128
+            if exponent == 0 {
+
+                // the input number is subnormal, normalize it
+                while (mantissa >> 23) != 1 {
+                    mantissa <<= 1;
+                    --scaled_exponent;
+                }
+                scaled_exponent += 1;
+                
+                mantissa = mantissa & 0x007fffff;
+
+                if scaled_exponent < 255 {
+                    long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+                } else {
+                    if sign == 0 { f32::INFINITY } else { f32::NEG_INFINITY }
+                }
+
+            } else if scaled_exponent < 255 {
+                long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+            } else {
+                if sign == 0 { f32::INFINITY } else { f32::NEG_INFINITY }
+            }
+        }
+    }  // scalb
+    
+        /**
+     * Get the next machine representable number after a number, moving
+     * in the direction of another number.
+     * <p>
+     * The ordering is as follows (increasing):
+     * <ul>
+     * <li>-INFINITY</li>
+     * <li>-MAX_VALUE</li>
+     * <li>-MIN_VALUE</li>
+     * <li>-0.0</li>
+     * <li>+0.0</li>
+     * <li>+MIN_VALUE</li>
+     * <li>+MAX_VALUE</li>
+     * <li>+INFINITY</li>
+     * <li></li>
+     * <p>
+     * If arguments compare equal, then the second argument is returned.
+     * <p>
+     * If {@code direction} is greater than {@code f},
+     * the smallest machine representable number strictly greater than
+     * {@code f} is returned; if less, then the largest representable number
+     * strictly less than {@code f} is returned.</p>
+     * <p>
+     * If {@code f} is infinite and direction does not
+     * bring it back to finite numbers, it is returned unchanged.</p>
+     *
+     * @param f base number
+     * @param direction (the only important thing is whether
+     * {@code direction} is greater or smaller than {@code f})
+     * @return the next machine representable number in the specified direction
+     */
+     pub fn nextAfter(d: f32, direction: f32) -> f32 {
+		// handling of some important special cases
+        if (d.is_nan() || direction.is_nan()) {
+            return f32::NAN;
+        } else if (d == direction) {
+            return direction;
+        } else if (d.is_infinite()) {
+            return if d < 0.0 { -f32::MAX } else  { f32::MAX };
+        } else if (d == 0.0) {
+            return if direction < 0.0 { -f32::MIN_POSITIVE } else { f32::MIN_POSITIVE };
+        }
+        // special cases MAX_VALUE to infinity and  MIN_VALUE to 0
+        // are handled just as normal numbers
+        // can use raw bits since already dealt with infinity and NaN
+        let bits = float_to_raw_int_bits(&d);
+        let sign = bits & 0x80000000u64;
+        if ((direction < d) ^ (sign == 0)) {
+            return int_bits_to_float(sign | ((bits & 0x7fffffff) + 1));
+        } else {
+            return int_bits_to_float(sign | ((bits & 0x7fffffff) - 1));
+        }
+        
+    }
+    
 }
 
 
