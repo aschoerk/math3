@@ -418,7 +418,7 @@ impl F64 {
          * has a value in the range 0 <= epsilon < 2^-10.
          * Do the subtraction from x as the last step to avoid possible loss of precision.
          */
-        let epsilon: f64 = x - (int_val + int_frac / 1024.0);
+        let epsilon: f64 = x - (int_val + int_frac as f64 / 1024.0);
 
         /* Compute z = exp(epsilon) - 1.0 via a minimax polynomial.  z has
        full double precision (52 bits).  Since z < 2^-10, we will have
