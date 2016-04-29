@@ -44,6 +44,9 @@
 What is this Project
 ====================
 
+I do something here just because I want to get an impression how something realistic previously implemented in Java can be done 
+in Rust.
+There is this much copyright, the origin is apache code, but don't expect this to be usable for any purposes.
 A partial Rewrite of a non trivial java-module in Rust. Not usable for production purposes!
 
 
