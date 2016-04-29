@@ -11,7 +11,7 @@ pub const PI: f64 = 105414357.0 / 33554432.0 + 1.984187159361080883e-9;
 pub const E: f64 = 2850325.0 / 1048576.0 + 8.254840070411028747e-8;
 
 /** Index of exp(0) in the array of integer exponentials. */
-const EXP_INT_TABLE_MAX_INDEX: u16 = 750;
+const EXP_INT_TABLE_MAX_INDEX: i16 = 750;
 /** Length of the array of integer exponentials. */
 const EXP_INT_TABLE_LEN: usize = (EXP_INT_TABLE_MAX_INDEX * 2) as usize;
 /** Logarithm table length. */
@@ -313,7 +313,7 @@ impl F64 {
      * @return the high order part of the mantissa
      */
     fn double_high_part(d: f64) -> f64 {
-        if (d > -precision::SAFE_MIN && d < precision::SAFE_MIN){
+        if (d > -*precision::SAFE_MIN && d < *precision::SAFE_MIN){
             return d; // These are un-normalised - don't try to convert
         }
         let xl = double_to_raw_long_bits(&d); // can take raw bits because just gonna convert it back
@@ -340,7 +340,7 @@ impl F64 {
     fn exp_prec(x: f64, extra: f64, hi_prec_o: &mut Option<&mut [f64;2]>) -> f64 {
         let mut int_part_a: f64 = 0.0;
         let mut int_part_b: f64 = 0.0;
-        let int_val: i32 = x as i32;
+        let int_val = x as i16;
 
         /* Lookup exp(floor(x)).
          * int_part_a will have the upper 22 bits, int_part_b will have the lower
@@ -403,14 +403,14 @@ impl F64 {
 
         }
 
-        int_part_a = EXP_INT_TABLE_A[EXP_INT_TABLE_MAX_INDEX+int_val];
-        int_part_b = EXP_INT_TABLE_B[EXP_INT_TABLE_MAX_INDEX+int_val];
+        int_part_a = EXP_INT_TABLE_A[(EXP_INT_TABLE_MAX_INDEX + int_val) as usize];
+        int_part_b = EXP_INT_TABLE_B[(EXP_INT_TABLE_MAX_INDEX + int_val) as usize];
 
         /* Get the fractional part of x, find the greatest multiple of 2^-10 less than
          * x and look up the exp function of it.
          * frac_part_a will have the upper 22 bits, frac_part_b the lower 52 bits.
          */
-        let int_frac: f32 = ((x - int_val) * 1024.0) as i32;
+        let int_frac = ((x - int_val as f64) * 1024.0) as usize;
         let frac_part_a: f64 = EXP_FRAC_TABLE_A[int_frac];
         let frac_part_b: f64 = EXP_FRAC_TABLE_B[int_frac];
 
@@ -418,7 +418,7 @@ impl F64 {
          * has a value in the range 0 <= epsilon < 2^-10.
          * Do the subtraction from x as the last step to avoid possible loss of precision.
          */
-        let epsilon: f64 = x - (int_val + int_frac / 1024.0);
+        let epsilon: f64 = x - (int_val + int_frac as f64 / 1024.0);
 
         /* Compute z = exp(epsilon) - 1.0 via a minimax polynomial.  z has
        full double precision (52 bits).  Since z < 2^-10, we will have
