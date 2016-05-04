@@ -316,7 +316,7 @@ impl F64 {
         if (d > -*precision::SAFE_MIN && d < *precision::SAFE_MIN){
             return d; // These are un-normalised - don't try to convert
         }
-        let xl = double_to_raw_long_bits(&d); // can take raw bits because just gonna convert it back
+        let mut xl = double_to_raw_long_bits(&d); // can take raw bits because just gonna convert it back
         xl &= MASK_30BITS; // Drop low order bits
         long_bits_to_double(&xl)
     }
@@ -340,7 +340,7 @@ impl F64 {
     fn exp_prec(x: f64, extra: f64, hi_prec_o: &mut Option<&mut [f64;2]>) -> f64 {
         let mut int_part_a: f64 = 0.0;
         let mut int_part_b: f64 = 0.0;
-        let int_val = x as i16;
+        let mut int_val = x as i16;
 
         /* Lookup exp(floor(x)).
          * int_part_a will have the upper 22 bits, int_part_b will have the lower
@@ -418,7 +418,7 @@ impl F64 {
          * has a value in the range 0 <= epsilon < 2^-10.
          * Do the subtraction from x as the last step to avoid possible loss of precision.
          */
-        let epsilon: f64 = x - (int_val + int_frac as f64 / 1024.0);
+        let epsilon: f64 = x - (int_val as f64 + int_frac as f64 / 1024.0);
 
         /* Compute z = exp(epsilon) - 1.0 via a minimax polynomial.  z has
        full double precision (52 bits).  Since z < 2^-10, we will have
@@ -427,7 +427,7 @@ impl F64 {
 
         /* Remez generated polynomial.  Converges on the interval [0, 2^-10], error
        is less than 0.5 ULP */
-        let z: f64 = 0.04168701738764507;
+        let mut z: f64 = 0.04168701738764507;
         z = z * epsilon + 0.1666666505023083;
         z = z * epsilon + 0.5000000000042687;
         z = z * epsilon + 1.0;
@@ -492,15 +492,154 @@ impl F64 {
      * @return double e<sup>x</sup>
      */
     pub fn exp(x: f64) -> f64 {
-        return F64::exp_prec(x, 0.0, None);
+        return F64::exp_prec(x, 0.0, &mut None);
     }
+
+    /** Compute exp(x) - 1
+     * @param x number to compute shifted exponential
+     * @return exp(x) - 1
+     */
+    pub fn expm1(x: f64) -> f64 {
+        return F64::expm1_prec(x, &mut None);
+    }
+
+
+    /** Internal helper method for expm1
+     * @param x number to compute shifted exponential
+     * @param hiPrecOut receive high precision result for -1.0 < x < 1.0
+     * @return exp(x) - 1
+     */    
+     fn expm1_prec(xP: f64, hi_prec_out: &mut Option<&mut [f64;2]>) -> f64 {
+     	let mut x = xP;
+     	if x != x || x == 0.0 {
+            // NaN or zero
+            return x;
+        }
+        if x <= -1.0 || x >= 1.0 {
+            // If not between +/- 1.0
+            //return exp(x) - 1.0;
+            let mut hi_prec: [f64; 2] = [0.0; 2];
+            F64::exp_prec(x, 0.0, &mut Some(&mut hi_prec));
+            if x > 0.0 {
+                return -1.0 + hi_prec[0] + hi_prec[1];
+            } else {
+                 let ra: f64 = -1.0 + hi_prec[0];
+                 let mut rb: f64 = -(ra + 1.0 - hi_prec[0]);
+                rb += hi_prec[1];
+                return ra + rb;
+            }
+        }
+         let mut base_a: f64;
+         let mut base_b: f64;
+         let mut epsilon: f64;
+         let mut negative: bool = false;
+        if x < 0.0 {
+            x = -x;
+            negative = true;
+        }
+        {
+             let int_frac: i32 = (x * 1024.0) as i32;
+             let mut temp_a: f64 = EXP_FRAC_TABLE_A[int_frac as usize] - 1.0;
+             let mut temp_b: f64 = EXP_FRAC_TABLE_B[int_frac as usize];
+             let mut temp: f64 = temp_a + temp_b;
+            temp_b = -(temp - temp_a - temp_b);
+            temp_a = temp;
+            temp = temp_a * HEX_40000000 as f64;
+            base_a = temp_a + temp - temp;
+            base_b = temp_b + (temp_a - base_a);
+            epsilon = x - int_frac as f64 / 1024.0;
+        }
+        /* Compute expm1(epsilon) */
+         let mut zb: f64 = 0.008336750013465571;
+        zb = zb * epsilon + 0.041666663879186654;
+        zb = zb * epsilon + 0.16666666666745392;
+        zb = zb * epsilon + 0.49999999999999994;
+        zb *= epsilon;
+        zb *= epsilon;
+         let mut za: f64 = epsilon;
+         let mut temp: f64 = za + zb;
+        zb = -(temp - za - zb);
+        za = temp;
+        temp = za * HEX_40000000 as f64;
+        temp = za + temp - temp;
+        zb += za - temp;
+        za = temp;
+        /* Combine the parts.   expm1(a+b) = expm1(a) + expm1(b) + expm1(a)*expm1(b) */
+         let mut ya: f64 = za * base_a;
+        //double yb = za*baseB + zb*baseA + zb*baseB;
+        temp = ya + za * base_b;
+         let mut yb: f64 = -(temp - ya - za * base_b);
+        ya = temp;
+        temp = ya + zb * base_a;
+        yb += -(temp - ya - zb * base_a);
+        ya = temp;
+        temp = ya + zb * base_b;
+        yb += -(temp - ya - zb * base_b);
+        ya = temp;
+        //ya = ya + za + baseA;
+        //yb = yb + zb + baseB;
+        temp = ya + base_a;
+        yb += -(temp - base_a - ya);
+        ya = temp;
+        temp = ya + za;
+        //yb += (ya > za) ? -(temp - ya - za) : -(temp - za - ya);
+        yb += -(temp - ya - za);
+        ya = temp;
+        temp = ya + base_b;
+        //yb += (ya > baseB) ? -(temp - ya - baseB) : -(temp - baseB - ya);
+        yb += -(temp - ya - base_b);
+        ya = temp;
+        temp = ya + zb;
+        //yb += (ya > zb) ? -(temp - ya - zb) : -(temp - zb - ya);
+        yb += -(temp - ya - zb);
+        ya = temp;
+        if negative {
+            /* Compute expm1(-x) = -expm1(x) / (expm1(x) + 1) */
+             let denom: f64 = 1.0 + ya;
+             let denomr: f64 = 1.0 / denom;
+             let denomb: f64 = -(denom - 1.0 - ya) + yb;
+             let ratio: f64 = ya * denomr;
+            temp = ratio * HEX_40000000 as f64;
+             let mut ra: f64 = ratio + temp - temp;
+             let mut rb: f64 = ratio - ra;
+            temp = denom * HEX_40000000 as f64;
+            za = denom + temp - temp;
+            zb = denom - za;
+            rb += (ya - za * ra - za * rb - zb * ra - zb * rb) * denomr;
+            // f(x) = x/1+x
+            // Compute f'(x)
+            // Product rule:  d(uv) = du*v + u*dv
+            // Chain rule:  d(f(g(x)) = f'(g(x))*f(g'(x))
+            // d(1/x) = -1/(x*x)
+            // d(1/1+x) = -1/( (1+x)^2) *  1 =  -1/((1+x)*(1+x))
+            // d(x/1+x) = -x/((1+x)(1+x)) + 1/1+x = 1 / ((1+x)(1+x))
+            // Adjust for yb
+            // numerator
+            rb += yb * denomr;
+            // denominator
+            rb += -ya * denomb * denomr * denomr;
+            // negate
+            ya = -ra;
+            yb = -rb;
+        }
+        match *hi_prec_out {
+    		Some (ref mut hi_prec) => {
+    			hi_prec[0] = ya;
+    			hi_prec[1] = yb;
+    		} ,
+    		None => {},
+    	}
+        return ya + yb;    	
+     }
 
     
      /** Compute the hyperbolic cosine of a number.
      * @param x number on which evaluation is done
      * @return hyperbolic cosine of x
      */
-    pub fn cosh(x: f64) -> f64 {
+    pub fn cosh(xP: f64) -> f64 {
+    	let mut x = xP;
+    	
       if x != x {
           return x;
       }
@@ -510,40 +649,40 @@ impl F64 {
       // for numbers with magnitude 20 or so,
       // exp(-z) can be ignored in comparison with exp(z)
 
-      if x > 20 {
-          if x >= LOG_MAX_VALUE {
+      if x > 20.0 {
+          if x >= *LOG_MAX_VALUE {
               // Avoid overflow (MATH-905).
               let t = F64::exp(0.5 * x);
-              (0.5 * t) * t
+              return (0.5 * t) * t;
           } else {
-               0.5 * F64::exp(x)
+              return 0.5 * F64::exp(x);
           }
-      } else if x < -20 {
-          if x <= -LOG_MAX_VALUE {
+      } else if x < -20.0 {
+          if x <= -*LOG_MAX_VALUE {
               // Avoid overflow (MATH-905).
               let t = F64::exp(-0.5 * x);
-              (0.5 * t) * t
+              return (0.5 * t) * t;
           } else {
-              0.5 * F64::exp(-x)
+              return 0.5 * F64::exp(-x);
           }
       }
 
-      let hi_prec: [f64; 2] = [0.0, 0.0];
+      let mut hi_prec: [f64; 2] = [0.0, 0.0];
       if (x < 0.0) {
           x = -x;
       }
-      F64::exp_prec(x, 0.0, Some(hi_prec));
+      F64::exp_prec(x, 0.0, &mut Some(&mut hi_prec));
 
       let mut ya = hi_prec[0] + hi_prec[1];
       let mut yb = -(ya - hi_prec[0] - hi_prec[1]);
 
-      let mut temp = ya * HEX_40000000;
+      let mut temp = ya * HEX_40000000 as f64;
       let yaa = ya + temp - temp;
       let yab = ya - yaa;
 
       // recip = 1/y
-      let recip = 1.0/ya;
-      let mut temp = recip * HEX_40000000;
+      let recip = 1.0 / ya;
+      let mut temp = recip * HEX_40000000 as f64;
       let recipa = recip + temp - temp;
       let mut recipb = recip - recipa;
 
@@ -560,9 +699,405 @@ impl F64 {
       yb += -(temp - ya - recipb);
       ya = temp;
 
-      let result = ya + yb;
-      result *= 0.5;
-      result
+      (ya + yb) * 0.5
+    }
+    
+  /** Compute the hyperbolic sine of a number.
+     * @param x number on which evaluation is done
+     * @return hyperbolic sine of x
+     */
+    pub fn  sinh( xP: f64) -> f64  {
+    	let mut x = xP;
+        let mut negate: bool = false;
+        if x != x {
+            return x;
+        }
+        if x > 20.0 {
+            if x >= *LOG_MAX_VALUE {
+                // Avoid overflow (MATH-905).
+                let t: f64 = F64::exp(0.5 * x);
+                return (0.5 * t) * t;
+            } else {
+                return 0.5 * F64::exp(x);
+            }
+        } else if x < -20.0 {
+            if x <= -*LOG_MAX_VALUE {
+                // Avoid overflow (MATH-905).
+                 let t: f64 = F64::exp(-0.5 * x);
+                return (-0.5 * t) * t;
+            } else {
+                return -0.5 * F64::exp(-x);
+            }
+        }
+        if x == 0.0 {
+            return x;
+        }
+        if x < 0.0 {
+            x = -x;
+            negate = true;
+        }
+        let mut result: f64;
+        if x > 0.25 {
+             let mut hi_prec: [f64; 2] = [0.0; 2];
+            F64::exp_prec(x, 0.0, &mut Some(&mut hi_prec));
+             let mut ya: f64 = hi_prec[0] + hi_prec[1];
+             let mut yb: f64 = -(ya - hi_prec[0] - hi_prec[1]);
+             let mut temp: f64 = ya * HEX_40000000 as f64;
+             let yaa: f64 = ya + temp - temp;
+             let yab: f64 = ya - yaa;
+            // recip = 1/y
+             let recip: f64 = 1.0 / ya;
+             temp = recip * HEX_40000000 as f64;
+             let mut recipa: f64 = recip + temp - temp;
+             let mut recipb: f64 = recip - recipa;
+            // Correct for rounding in division
+            recipb += (1.0 - yaa * recipa - yaa * recipb - yab * recipa - yab * recipb) * recip;
+            // Account for yb
+            recipb += -yb * recip * recip;
+            recipa = -recipa;
+            recipb = -recipb;
+            // y = y + 1/y
+            temp = ya + recipa;
+            yb += -(temp - ya - recipa);
+            ya = temp;
+            temp = ya + recipb;
+            yb += -(temp - ya - recipb);
+            ya = temp;
+            result = ya + yb;
+            result *= 0.5;
+        } else {
+             let mut hi_prec: [f64; 2] = [0.0; 2];
+             F64::expm1_prec(x, &mut Some(&mut hi_prec));
+             let mut ya: f64 = hi_prec[0] + hi_prec[1];
+             let mut yb: f64 = -(ya - hi_prec[0] - hi_prec[1]);
+            /* Compute expm1(-x) = -expm1(x) / (expm1(x) + 1) */
+             let denom: f64 = 1.0 + ya;
+             let denomr: f64 = 1.0 / denom;
+             let denomb: f64 = -(denom - 1.0 - ya) + yb;
+             let ratio: f64 = ya * denomr;
+             let mut temp: f64 = ratio * HEX_40000000 as f64;
+             let mut ra: f64 = ratio + temp - temp;
+             let mut rb: f64 = ratio - ra;
+            temp = denom * HEX_40000000 as f64;
+             let za: f64 = denom + temp - temp;
+             let zb: f64 = denom - za;
+            rb += (ya - za * ra - za * rb - zb * ra - zb * rb) * denomr;
+            // Adjust for yb
+            // numerator
+            rb += yb * denomr;
+            // denominator
+            rb += -ya * denomb * denomr * denomr;
+            // y = y - 1/y
+            temp = ya + ra;
+            yb += -(temp - ya - ra);
+            ya = temp;
+            temp = ya + rb;
+            yb += -(temp - ya - rb);
+            ya = temp;
+            result = ya + yb;
+            result *= 0.5;
+        }
+        if negate {
+            result = -result;
+        }
+        return result;
+    }   
+    
+     /** Compute the hyperbolic tangent of a number.
+     * @param x number on which evaluation is done
+     * @return hyperbolic tangent of x
+     */
+    pub fn  tanh( xP: f64) -> f64  {
+    	let mut x = xP;
+         let mut negate: bool = false;
+        if x != x {
+            return x;
+        }
+        if x > 20.0 {
+            return 1.0;
+        }
+        if x < -20.0 {
+            return -1.0;
+        }
+        if x == 0.0 {
+            return x;
+        }
+        if x < 0.0 {
+            x = -x;
+            negate = true;
+        }
+         let mut result: f64;
+        if x >= 0.5 {
+             let mut hi_prec: [f64; 2] = [0.0; 2];
+            // tanh(x) = (exp(2x) - 1) / (exp(2x) + 1)
+            F64::exp_prec(x * 2.0, 0.0, &mut Some(&mut hi_prec));
+             let mut ya: f64 = hi_prec[0] + hi_prec[1];
+             let mut yb: f64 = -(ya - hi_prec[0] - hi_prec[1]);
+            /* Numerator */
+             let mut na: f64 = -1.0 + ya;
+             let mut nb: f64 = -(na + 1.0 - ya);
+             let mut temp: f64 = na + yb;
+            nb += -(temp - na - yb);
+            na = temp;
+            /* Denominator */
+             let mut da: f64 = 1.0 + ya;
+             let mut db: f64 = -(da - 1.0 - ya);
+            temp = da + yb;
+            db += -(temp - da - yb);
+            da = temp;
+            temp = da * HEX_40000000 as f64;
+             let mut daa: f64 = da + temp - temp;
+             let mut dab: f64 = da - daa;
+            // ratio = na/da
+             let ratio: f64 = na / da;
+            temp = ratio * HEX_40000000 as f64;
+             let mut ratioa: f64 = ratio + temp - temp;
+             let mut ratiob: f64 = ratio - ratioa;
+            // Correct for rounding in division
+            ratiob += (na - daa * ratioa - daa * ratiob - dab * ratioa - dab * ratiob) / da;
+            // Account for nb
+            ratiob += nb / da;
+            // Account for db
+            ratiob += -db * na / da / da;
+            result = ratioa + ratiob;
+        } else {
+             let mut hi_prec: [f64; 2] = [0.0; 2];
+            // tanh(x) = expm1(2x) / (expm1(2x) + 2)
+            F64::expm1_prec(x * 2.0, &mut Some(&mut hi_prec));
+             let mut ya: f64 = hi_prec[0] + hi_prec[1];
+             let mut yb: f64 = -(ya - hi_prec[0] - hi_prec[1]);
+            /* Numerator */
+             let mut na: f64 = ya;
+             let mut nb: f64 = yb;
+            /* Denominator */
+             let mut da: f64 = 2.0 + ya;
+             let mut db: f64 = -(da - 2.0 - ya);
+             let mut temp: f64 = da + yb;
+            db += -(temp - da - yb);
+            da = temp;
+            temp = da * HEX_40000000 as f64;
+             let mut daa: f64 = da + temp - temp;
+             let mut dab: f64 = da - daa;
+            // ratio = na/da
+             let mut ratio: f64 = na / da;
+            temp = ratio * HEX_40000000 as f64;
+             let mut ratioa: f64 = ratio + temp - temp;
+             let mut ratiob: f64 = ratio - ratioa;
+            // Correct for rounding in division
+            ratiob += (na - daa * ratioa - daa * ratiob - dab * ratioa - dab * ratiob) / da;
+            // Account for nb
+            ratiob += nb / da;
+            // Account for db
+            ratiob += -db * na / da / da;
+            result = ratioa + ratiob;
+        }
+        if negate {
+            result = -result;
+        }
+        return result;
+    }
+    
+    /**
+     * Natural logarithm.
+     *
+     * @param x   a double
+     * @return log(x)
+     */
+    pub fn  log( x: f64) -> f64  {
+        return log(x, null);
+    }
+
+    /**
+     * Internal helper method for natural logarithm function.
+     * @param x original argument of the natural logarithm function
+     * @param hiPrec extra bits of precision on output (To Be Confirmed)
+     * @return log(x)
+     */
+    fn  log( x: f64,  hi_prec_out: &mut Option<&mut [f64;2]>) -> f64  {
+        if x == 0 {
+            // Handle special case of +0/-0
+            return f64::NEG_INFINITY;
+        }
+        let bits: i64 = double_to_raw_long_bits(&x);
+        /* Handle special cases of negative input, and NaN */
+        if ((bits & 0x8000000000000000) != 0 || x != x) && x != 0.0 {
+            if hi_prec != null {
+                hi_prec[0] = Double::NaN;
+            }
+            return Double::NaN;
+        }
+        /* Handle special cases of Positive infinity. */
+        if x == Double::POSITIVE_INFINITY {
+            if hi_prec != null {
+                hi_prec[0] = Double::POSITIVE_INFINITY;
+            }
+            return Double::POSITIVE_INFINITY;
+        }
+        /* Extract the exponent */
+         let exp: i32 = (bits >> 52) as i32 - 1023;
+        if (bits & 0x7ff0000000000000) == 0 {
+            // Subnormal!
+            if x == 0 {
+                // Zero
+                if hi_prec != null {
+                    hi_prec[0] = Double::NEGATIVE_INFINITY;
+                }
+                return Double::NEGATIVE_INFINITY;
+            }
+            /* Normalize the subnormal number. */
+            bits <<= 1;
+            while (bits & 0x0010000000000000) == 0 {
+                exp-= 1;
+                bits <<= 1;
+            }
+        }
+        if (exp == -1 || exp == 0) && x < 1.01 && x > 0.99 && hi_prec == null {
+            /* The normal method doesn't work well in the range [0.99, 1.01], so call do a straight
+           polynomial expansion in higer precision. */
+            /* Compute x - 1.0 and split it */
+             let xa: f64 = x - 1.0;
+             let xb: f64 = xa - x + 1.0;
+             let tmp: f64 = xa * HEX_40000000;
+             let aa: f64 = xa + tmp - tmp;
+             let ab: f64 = xa - aa;
+            xa = aa;
+            xb = ab;
+             let ln_coef_last: f64[] = LN_QUICK_COEF[LN_QUICK_COEF::length - 1];
+             let ya: f64 = ln_coef_last[0];
+             let yb: f64 = ln_coef_last[1];
+            for ( let i: i32 = LN_QUICK_COEF::length - 2; i >= 0; i-= 1) {
+                /* Multiply a = y * x */
+                aa = ya * xa;
+                ab = ya * xb + yb * xa + yb * xb;
+                /* split, so now y = a */
+                tmp = aa * HEX_40000000;
+                ya = aa + tmp - tmp;
+                yb = aa - ya + ab;
+                /* Add  a = y + lnQuickCoef */
+                 let ln_coef_i: f64[] = LN_QUICK_COEF[i];
+                aa = ya + ln_coef_i[0];
+                ab = yb + ln_coef_i[1];
+                /* Split y = a */
+                tmp = aa * HEX_40000000;
+                ya = aa + tmp - tmp;
+                yb = aa - ya + ab;
+            }
+            /* Multiply a = y * x */
+            aa = ya * xa;
+            ab = ya * xb + yb * xa + yb * xb;
+            /* split, so now y = a */
+            tmp = aa * HEX_40000000;
+            ya = aa + tmp - tmp;
+            yb = aa - ya + ab;
+            return ya + yb;
+        }
+        // lnm is a log of a number in the range of 1.0 - 2.0, so 0 <= lnm < ln(2)
+         let lnm: f64[] = ln_mant.LN_MANT[((bits & 0x000ffc0000000000) >> 42) as i32];
+        /*
+    double epsilon = x / Double.longBitsToDouble(bits & 0xfffffc0000000000L);
+
+    epsilon -= 1.0;
+         */
+        // y is the most significant 10 bits of the mantissa
+        //double y = Double.longBitsToDouble(bits & 0xfffffc0000000000L);
+        //double epsilon = (x - y) / y;
+         let epsilon: f64 = (bits & 0x3ffffffffff) / (TWO_POWER_52 + (bits & 0x000ffc0000000000));
+         let lnza: f64 = 0.0;
+         let lnzb: f64 = 0.0;
+        if hi_prec != null {
+            /* split epsilon -> x */
+             let tmp: f64 = epsilon * HEX_40000000;
+             let aa: f64 = epsilon + tmp - tmp;
+             let ab: f64 = epsilon - aa;
+             let xa: f64 = aa;
+             let xb: f64 = ab;
+            /* Need a more accurate epsilon, so adjust the division. */
+             let numer: f64 = bits & 0x3ffffffffff;
+             let denom: f64 = TWO_POWER_52 + (bits & 0x000ffc0000000000);
+            aa = numer - xa * denom - xb * denom;
+            xb += aa / denom;
+            /* Remez polynomial evaluation */
+             let ln_coef_last: f64[] = LN_HI_PREC_COEF[LN_HI_PREC_COEF::length - 1];
+             let ya: f64 = ln_coef_last[0];
+             let yb: f64 = ln_coef_last[1];
+            for ( let i: i32 = LN_HI_PREC_COEF::length - 2; i >= 0; i-= 1) {
+                /* Multiply a = y * x */
+                aa = ya * xa;
+                ab = ya * xb + yb * xa + yb * xb;
+                /* split, so now y = a */
+                tmp = aa * HEX_40000000;
+                ya = aa + tmp - tmp;
+                yb = aa - ya + ab;
+                /* Add  a = y + lnHiPrecCoef */
+                 let ln_coef_i: f64[] = LN_HI_PREC_COEF[i];
+                aa = ya + ln_coef_i[0];
+                ab = yb + ln_coef_i[1];
+                /* Split y = a */
+                tmp = aa * HEX_40000000;
+                ya = aa + tmp - tmp;
+                yb = aa - ya + ab;
+            }
+            /* Multiply a = y * x */
+            aa = ya * xa;
+            ab = ya * xb + yb * xa + yb * xb;
+            /* split, so now lnz = a */
+            /*
+      tmp = aa * 1073741824.0;
+      lnza = aa + tmp - tmp;
+      lnzb = aa - lnza + ab;
+             */
+            lnza = aa + ab;
+            lnzb = -(lnza - aa - ab);
+        } else {
+            /* High precision not required.  Eval Remez polynomial
+         using standard double precision */
+            lnza = -0.16624882440418567;
+            lnza = lnza * epsilon + 0.19999954120254515;
+            lnza = lnza * epsilon + -0.2499999997677497;
+            lnza = lnza * epsilon + 0.3333333333332802;
+            lnza = lnza * epsilon + -0.5;
+            lnza = lnza * epsilon + 1.0;
+            lnza *= epsilon;
+        }
+        /* Relative sizes:
+         * lnzb     [0, 2.33E-10]
+         * lnm[1]   [0, 1.17E-7]
+         * ln2B*exp [0, 1.12E-4]
+         * lnza      [0, 9.7E-4]
+         * lnm[0]   [0, 0.692]
+         * ln2A*exp [0, 709]
+         */
+        /* Compute the following sum:
+         * lnzb + lnm[1] + ln2B*exp + lnza + lnm[0] + ln2A*exp;
+         */
+        //return lnzb + lnm[1] + ln2B*exp + lnza + lnm[0] + ln2A*exp;
+         let a: f64 = LN_2_A * exp;
+         let b: f64 = 0.0;
+         let c: f64 = a + lnm[0];
+         let d: f64 = -(c - a - lnm[0]);
+        a = c;
+        b += d;
+        c = a + lnza;
+        d = -(c - a - lnza);
+        a = c;
+        b += d;
+        c = a + LN_2_B * exp;
+        d = -(c - a - LN_2_B * exp);
+        a = c;
+        b += d;
+        c = a + lnm[1];
+        d = -(c - a - lnm[1]);
+        a = c;
+        b += d;
+        c = a + lnzb;
+        d = -(c - a - lnzb);
+        a = c;
+        b += d;
+        if hi_prec != null {
+            hi_prec[0] = a;
+            hi_prec[1] = b;
+        }
+        return a + b;
     }
 
 	
@@ -716,9 +1251,9 @@ impl F64 {
         let bits = double_to_raw_long_bits(&d);
         let sign = bits & 0x8000000000000000u64;
         if ((direction < d) ^ (sign == 0)) {
-            return long_bits_to_double(sign | ((bits & 0x7fffffffffffffff) + 1));
+            return long_bits_to_double(&(sign | ((bits & 0x7fffffffffffffff) + 1)));
         } else {
-            return long_bits_to_double(sign | ((bits & 0x7fffffffffffffff) - 1));
+            return long_bits_to_double(&(sign | ((bits & 0x7fffffffffffffff) - 1)));
         }   
     }
     
@@ -772,7 +1307,7 @@ impl F32 {
         }
 
         // decompose d
-        let bits = double_to_raw_long_bits(&d);
+        let bits = float_to_raw_int_bits(&d);
         let sign = bits & 0x80000000u32;
         let exponent = ((bits as i32 >> 23) as i32) & 0xff;
         let mut mantissa   = bits & 0x007fffff;
@@ -784,7 +1319,7 @@ impl F32 {
             // we are really in the case n <= -127
             if scaled_exponent > 0 {
                 // both the input and the result are normal numbers, we only adjust the exponent
-                long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+                int_bits_to_float(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
             } else if scaled_exponent > -24 {
                 // the input is a normal number and the result is a subnormal number
 
@@ -798,7 +1333,7 @@ impl F32 {
                     // we need to add 1 bit to round up the result
                     mantissa += 1;
                 }
-                long_bits_to_double(&(sign | mantissa))
+                int_bits_to_float(&(sign | mantissa))
 
             } else {
                 // no need to compute the mantissa, the number scales down to 0
@@ -818,13 +1353,13 @@ impl F32 {
                 mantissa = mantissa & 0x007fffff;
 
                 if scaled_exponent < 255 {
-                    long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+                    int_bits_to_float(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
                 } else {
                     if sign == 0 { f32::INFINITY } else { f32::NEG_INFINITY }
                 }
 
             } else if scaled_exponent < 255 {
-                long_bits_to_double(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
+                int_bits_to_float(&(sign | ((scaled_exponent as u32) << 23) | mantissa))
             } else {
                 if sign == 0 { f32::INFINITY } else { f32::NEG_INFINITY }
             }
@@ -877,11 +1412,11 @@ impl F32 {
         // are handled just as normal numbers
         // can use raw bits since already dealt with infinity and NaN
         let bits = float_to_raw_int_bits(&d);
-        let sign = bits & 0x80000000u64;
+        let sign = bits & 0x80000000u32;
         if ((direction < d) ^ (sign == 0)) {
-            return int_bits_to_float(sign | ((bits & 0x7fffffff) + 1));
+            return int_bits_to_float(&(sign | ((bits & 0x7fffffff) + 1)));
         } else {
-            return int_bits_to_float(sign | ((bits & 0x7fffffff) - 1));
+            return int_bits_to_float(&(sign | ((bits & 0x7fffffff) - 1)));
         }
         
     }
