@@ -1,7 +1,20 @@
 extern crate math3;
 
-use math3::rsutils::*;
-use math3::fastmath::*;
+use math3::util::rsutils::*;
+use math3::util::fastmath::*;
+
+trait X {
+	
+}
+
+struct A {
+	
+}
+
+pub const X: i32 = 100;
+
+impl A {
+}
 
 pub fn main() {
 	
