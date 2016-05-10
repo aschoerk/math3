@@ -480,12 +480,12 @@ impl Dfp {
 	        decimal_pos += i;
 	        // Make the mantissa length right by adding zeros at the end if necessary
 	        while (p - q) < (mant.length * rsize) {
-	            for (i = 0; i < rsize; i+= 1) {
+	        	for i in 0..rsize {
 	                striped[p+= 1] = '0';
 	            }
 	        }
 	        // and where the least significant digit is
-	        for (i = mant.length - 1; i >= 0; i-= 1) {
+	        for i in (0..mant.length).rev() {
 	            mant[i] = (striped[q] - '0') * 1000 + (striped[q + 1] - '0') * 100 + (striped[q + 2] - '0') * 10 + (striped[q + 3] - '0');
 	            q += 4;
 	        }
@@ -503,9 +503,9 @@ impl Dfp {
      * @param nans code of the value, must be one of {@link #INFINITE},
      * {@link #SNAN},  {@link #QNAN}
      */
-    fn new( field: &DfpField,  sign: i8,  nans: i8) -> Dfp {
+    fn new_sign_nans( field: &DfpField,  sign: i8,  nans: i8) -> Dfp {
         self.field = field;
-        self.mant = : [i32; field.get_radix_digits()] = [0; field.get_radix_digits()];
+        self.mant = [0; field.get_radix_digits()];
         self.sign = sign;
         self.exp = 0;
         self.nans = nans;
@@ -516,7 +516,7 @@ impl Dfp {
      * @return a new instance with a value of 0
      */
     pub fn  new_instance(&self) -> Dfp  {
-        return new Dfp(get_field());
+        return new Dfp(self.get_field());
     }
 
     /** Create an instance from a byte value.
@@ -532,7 +532,7 @@ impl Dfp {
      * @return a new instance with value x
      */
     pub fn  new_instance_i32(&self,  x: i32) -> Dfp  {
-        return Dfp::new_i32(get_field(), x);
+        return Dfp::new_i32(self.get_field(), x);
     }
 
     /** Create an instance from a long value.
@@ -540,7 +540,7 @@ impl Dfp {
      * @return a new instance with value x
      */
     pub fn  new_instance_i64(&self,  x: i64) -> Dfp  {
-        return Dfp::new_i64(get_field(), x);
+        return Dfp::new_i64(self.get_field(), x);
     }
 
     /** Create an instance from a double value.
@@ -548,7 +548,7 @@ impl Dfp {
      * @return a new instance with value x
      */
     pub fn  new_instance_f64(&self,  x: f64) -> Dfp  {
-        return nDfp::new_f64(get_field(), x);
+        return nDfp::new_f64(self.get_field(), x);
     }
 
     /** Create an instance by copying an existing one.
@@ -558,9 +558,9 @@ impl Dfp {
      */
     pub fn  new_instance_dfp(&self,  d: &Dfp) -> Dfp  {
         // make sure we don't mix number with different precision
-        if field.get_radix_digits() != d.field.get_radix_digits() {
-            field.set_i_e_e_e_flags_bits(DfpField::FLAG_INVALID);
-             let result: Dfp = new_instance(get_zero());
+        if self.field.get_radix_digits() != d.field.get_radix_digits() {
+            self.field.set_i_e_e_e_flags_bits(DfpField::FLAG_INVALID);
+             let result: Dfp = self.new_instance(get_zero());
             result.nans = QNAN;
             return dotrap(DfpField::FLAG_INVALID, NEW_INSTANCE_TRAP, d, result);
         }
@@ -572,8 +572,8 @@ impl Dfp {
      * @param s string representation of the instance
      * @return a new instance parsed from specified string
      */
-    pub fn  new_instance_string(&self,  s: &String) -> Dfp  {
-        return Dfp::new_string(field, s);
+    pub fn  new_instance_str(&self,  s: &String) -> Dfp  {
+        return Dfp::new_str(field, s);
     }
 
     /** Creates an instance with a non-finite value.
@@ -594,45 +594,45 @@ impl Dfp {
      * @return {@link org.apache.commons.math3.Field Field} (really a {@link DfpField}) to which the instance belongs
      */
     pub fn  get_field(&self) -> DfpField  {
-        return field;
+        return self.field;
     }
 
     /** Get the number of radix digits of the instance.
      * @return number of radix digits
      */
     pub fn  get_radix_digits(&self) -> i32  {
-        return field.get_radix_digits();
+        return self.field.get_radix_digits();
     }
 
     /** Get the constant 0.
      * @return a Dfp with value zero
      */
     pub fn  get_zero(&self) -> Dfp  {
-        return field.get_zero();
+        return self.field.get_zero();
     }
 
     /** Get the constant 1.
      * @return a Dfp with value one
      */
     pub fn  get_one(&self) -> Dfp  {
-        return field.get_one();
+        return self.field.get_one();
     }
 
     /** Get the constant 2.
      * @return a Dfp with value two
      */
     pub fn  get_two(&self) -> Dfp  {
-        return field.get_two();
+        return self.field.get_two();
     }
 
     /** Shift the mantissa left, and adjust the exponent to compensate.
      */
     fn  shift_left(&self) -> void  {
-        for ( let i: i32 = mant.length - 1; i > 0; i-= 1) {
-            mant[i] = mant[i - 1];
+    	for i in (1..self.mant.len()).rev() {
+            self.mant[i] = self.mant[i - 1];
         }
-        mant[0] = 0;
-        exp-= 1;
+        self.mant[0] = 0;
+        self.exp-= 1;
     }
 
     /* Note that shiftRight() does not call round() as that round() itself
@@ -640,11 +640,11 @@ impl Dfp {
     /** Shift the mantissa right, and adjust the exponent to compensate.
      */
     fn  shift_right(&self) -> void  {
-        for ( let i: i32 = 0; i < mant.length - 1; i+= 1) {
-            mant[i] = mant[i + 1];
+    	for i in 0..self.mant.len()-1 {
+            self.mant[i] = self.mant[i + 1];
         }
-        mant[mant.length - 1] = 0;
-        exp+= 1;
+        self.mant[self.mant.length - 1] = 0;
+        self.exp+= 1;
     }
 
     /** Make our exp equal to the supplied one, this may cause rounding.
